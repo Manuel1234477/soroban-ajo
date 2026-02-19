@@ -3,6 +3,7 @@
 // Status: Placeholder
 
 import toast from 'react-hot-toast'
+import { analytics } from '../services/analytics'
 
 // TODO: Setup notification system using react-hot-toast
 // This includes:
@@ -14,17 +15,61 @@ import toast from 'react-hot-toast'
 // - Notification positioning and styling
 
 export const showNotification = {
-  success: (message: string) => {
+  success: (message: string, metadata?: Record<string, any>) => {
+    analytics.trackEvent({
+      category: 'Notification',
+      action: 'Success',
+      label: message,
+      metadata,
+    })
+    
     toast.success(message, {
       duration: 4000,
       position: 'top-right',
     })
   },
 
-  error: (message: string) => {
+  error: (message: string, metadata?: Record<string, any>) => {
+    analytics.trackEvent({
+      category: 'Notification',
+      action: 'Error',
+      label: message,
+      metadata,
+    })
+    
     toast.error(message, {
       duration: 4000,
       position: 'top-right',
+    })
+  },
+
+  warning: (message: string, metadata?: Record<string, any>) => {
+    analytics.trackEvent({
+      category: 'Notification',
+      action: 'Warning',
+      label: message,
+      metadata,
+    })
+    
+    toast(message, {
+      duration: 4000,
+      position: 'top-right',
+      icon: '⚠️',
+    })
+  },
+
+  info: (message: string, metadata?: Record<string, any>) => {
+    analytics.trackEvent({
+      category: 'Notification',
+      action: 'Info',
+      label: message,
+      metadata,
+    })
+    
+    toast(message, {
+      duration: 4000,
+      position: 'top-right',
+      icon: 'ℹ️',
     })
   },
 
@@ -36,9 +81,31 @@ export const showNotification = {
 
   promise: async <T,>(
     promise: Promise<T>,
-    messages: { loading: string; success: string; error: string }
+    messages: { loading: string; success: string; error: string },
+    metadata?: Record<string, any>
   ) => {
-    return toast.promise(promise, messages)
+    const start = performance.now()
+    
+    try {
+      const result = await toast.promise(promise, messages)
+      const duration = performance.now() - start
+      
+      analytics.trackMetric('promise_notification', duration, {
+        ...metadata,
+        status: 'success',
+      })
+      
+      return result
+    } catch (error) {
+      const duration = performance.now() - start
+      
+      analytics.trackMetric('promise_notification', duration, {
+        ...metadata,
+        status: 'error',
+      })
+      
+      throw error
+    }
   },
 
   dismiss: (toastId: string) => {

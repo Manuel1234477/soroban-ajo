@@ -3,6 +3,7 @@
 // Status: Placeholder
 
 import React from 'react'
+import { analytics } from '../services/analytics'
 
 interface ErrorBoundaryProps {
   children: React.ReactNode
@@ -24,7 +25,12 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
   }
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-    // TODO: Log error to monitoring service (Sentry, LogRocket, etc.)
+    // Track error in analytics
+    analytics.trackError(error, {
+      componentStack: errorInfo.componentStack,
+      errorBoundary: true,
+    }, 'critical')
+
     console.error('ErrorBoundary caught error:', error, errorInfo)
   }
 

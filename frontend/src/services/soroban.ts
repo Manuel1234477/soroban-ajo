@@ -3,6 +3,8 @@
 // Status: Placeholder
 
 import { Keypair, SorobanRpc, Contract } from 'stellar-sdk'
+import { analytics, trackUserAction } from './analytics'
+import { showNotification } from '../utils/notifications'
 
 const RPC_URL = import.meta.env.VITE_SOROBAN_RPC_URL
 const CONTRACT_ID = import.meta.env.VITE_SOROBAN_CONTRACT_ID
@@ -33,29 +35,78 @@ export const initializeSoroban = (): SorobanService => {
 
   return {
     createGroup: async (params: CreateGroupParams) => {
-      console.log('TODO: Implement createGroup', params)
-      // Placeholder - would call contract.invoke()
-      return 'group_id_placeholder'
+      return analytics.measureAsync('create_group', async () => {
+        try {
+          console.log('TODO: Implement createGroup', params)
+          // Placeholder - would call contract.invoke()
+          const groupId = 'group_id_placeholder'
+          
+          trackUserAction.groupCreated(groupId, params)
+          showNotification.success('Group created successfully!')
+          
+          return groupId
+        } catch (error) {
+          analytics.trackError(error as Error, { operation: 'createGroup', params }, 'high')
+          showNotification.error('Failed to create group')
+          throw error
+        }
+      })
     },
 
     joinGroup: async (groupId: string) => {
-      console.log('TODO: Implement joinGroup', groupId)
-      // Placeholder
+      return analytics.measureAsync('join_group', async () => {
+        try {
+          console.log('TODO: Implement joinGroup', groupId)
+          // Placeholder
+          
+          trackUserAction.groupJoined(groupId)
+          showNotification.success('Successfully joined group!')
+        } catch (error) {
+          analytics.trackError(error as Error, { operation: 'joinGroup', groupId }, 'high')
+          showNotification.error('Failed to join group')
+          throw error
+        }
+      })
     },
 
     contribute: async (groupId: string, amount: number) => {
-      console.log('TODO: Implement contribute', groupId, amount)
-      // Placeholder
+      return analytics.measureAsync('contribute', async () => {
+        try {
+          console.log('TODO: Implement contribute', groupId, amount)
+          // Placeholder
+          
+          trackUserAction.contributionMade(groupId, amount)
+          showNotification.success(`Contribution of ${amount} XLM successful!`)
+        } catch (error) {
+          analytics.trackError(error as Error, { operation: 'contribute', groupId, amount }, 'critical')
+          showNotification.error('Contribution failed')
+          throw error
+        }
+      })
     },
 
     getGroupStatus: async (groupId: string) => {
-      console.log('TODO: Implement getGroupStatus', groupId)
-      return {}
+      return analytics.measureAsync('get_group_status', async () => {
+        try {
+          console.log('TODO: Implement getGroupStatus', groupId)
+          return {}
+        } catch (error) {
+          analytics.trackError(error as Error, { operation: 'getGroupStatus', groupId }, 'medium')
+          throw error
+        }
+      })
     },
 
     getGroupMembers: async (groupId: string) => {
-      console.log('TODO: Implement getGroupMembers', groupId)
-      return []
+      return analytics.measureAsync('get_group_members', async () => {
+        try {
+          console.log('TODO: Implement getGroupMembers', groupId)
+          return []
+        } catch (error) {
+          analytics.trackError(error as Error, { operation: 'getGroupMembers', groupId }, 'medium')
+          throw error
+        }
+      })
     },
   }
 }
