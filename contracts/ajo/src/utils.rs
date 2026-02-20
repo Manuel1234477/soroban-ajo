@@ -39,6 +39,8 @@ pub fn validate_group_params(
     duration: u64,
     max_members: u32,
 ) -> Result<(), crate::errors::AjoError> {
+    const MAX_MEMBERS_LIMIT: u32 = 100;
+    
     // Amounts must be positive
     if amount == 0 {
         return Err(crate::errors::AjoError::ContributionAmountZero);
@@ -54,6 +56,11 @@ pub fn validate_group_params(
     // We need at least two people to rotate money
     if max_members < 2 {
         return Err(crate::errors::AjoError::MaxMembersBelowMinimum);
+    }
+    
+    // Reasonable upper limit to prevent gas issues
+    if max_members > MAX_MEMBERS_LIMIT {
+        return Err(crate::errors::AjoError::MaxMembersAboveLimit);
     }
     
     Ok(())
