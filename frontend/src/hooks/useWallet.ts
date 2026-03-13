@@ -6,6 +6,7 @@ import {
     WalletConnectionResult,
     WalletInfo,
 } from '../types/wallet';
+import { getStellarNetworkFromFreighter, waitForFreighterApi } from '../utils/freighter';
 
 const STORAGE_KEY = 'soroban_ajo_wallet';
 
@@ -28,7 +29,7 @@ export const useWallet = () => {
             {
                 name: 'Freighter',
                 type: 'freighter',
-                isInstalled: typeof window !== 'undefined' && !!window.freighter,
+                isInstalled: typeof window !== 'undefined' && (!!window.freighterApi || !!window.freighter),
             },
             {
                 name: 'Albedo',
@@ -64,8 +65,13 @@ export const useWallet = () => {
 
     // Connect to Freighter wallet
     const connectFreighter = useCallback(
-        async (): Promise<WalletConnectionResult> => {
-            if (!window.freighter) {
+        async (requestedNetwork?: WalletState['network']): Promise<WalletConnectionResult> => {
+            // By the time a user clicks "connect", Freighter should be injected already.
+            // Do a quick poll to handle slow extension initialization without slowing tests too much.
+            const freighter = (typeof window !== 'undefined' && (window as any).freighterApi)
+                ? (window as any).freighterApi
+                : await waitForFreighterApi({ timeoutMs: 500, intervalMs: 50 });
+            if (!freighter) {
                 return {
                     success: false,
                     error: {
@@ -77,14 +83,15 @@ export const useWallet = () => {
             }
 
             try {
-                const publicKey = await window.freighter.getPublicKey();
-                const walletNetwork = await window.freighter.getNetwork();
+                const publicKey = await freighter.getPublicKey();
+                const networkDetails = await freighter.getNetworkDetails?.();
+                const walletNetwork = requestedNetwork ?? getStellarNetworkFromFreighter(networkDetails);
 
                 const newState: WalletState = {
                     isConnected: true,
                     address: publicKey,
                     walletType: 'freighter',
-                    network: walletNetwork as 'testnet' | 'mainnet' | 'futurenet',
+                    network: walletNetwork,
                     publicKey,
                 };
 
@@ -170,7 +177,7 @@ export const useWallet = () => {
             let result: WalletConnectionResult;
 
             if (walletType === 'freighter') {
-                result = await connectFreighter();
+                result = await connectFreighter(network);
             } else if (walletType === 'albedo') {
                 result = await connectAlbedo(network);
             } else {

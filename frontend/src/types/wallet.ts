@@ -35,12 +35,25 @@ export interface WalletConnectionResult {
     error?: WalletError;
 }
 
-// Freighter API types
-export interface FreighterAPI {
-    isConnected: () => Promise<boolean>;
+export type StellarNetwork = 'testnet' | 'mainnet' | 'futurenet';
+
+export type FreighterNetworkDetails = {
+    network?: string;
+    [key: string]: unknown;
+};
+
+// Freighter API types (the injected `window.freighterApi` surface).
+export interface FreighterApi {
+    isAllowed?: () => Promise<boolean>;
+    setAllowed?: () => Promise<void>;
     getPublicKey: () => Promise<string>;
-    getNetwork: () => Promise<string>;
-    signTransaction: (xdr: string, opts?: { network?: string; networkPassphrase?: string }) => Promise<string>;
+    getNetworkDetails?: () => Promise<FreighterNetworkDetails>;
+    signAuthEntry?: (entry: string) => Promise<string>;
+
+    // Legacy/optional methods some builds expose.
+    getNetwork?: () => Promise<string>;
+    isConnected?: () => Promise<boolean>;
+    signTransaction?: (xdr: string, opts?: { network?: string; networkPassphrase?: string }) => Promise<string>;
 }
 
 // Albedo API types
@@ -52,7 +65,9 @@ export interface AlbedoAPI {
 
 declare global {
     interface Window {
-        freighter?: FreighterAPI;
+        freighterApi?: FreighterApi;
+        // Legacy: keep this for older codepaths/extensions.
+        freighter?: FreighterApi;
         albedo?: AlbedoAPI;
     }
 }

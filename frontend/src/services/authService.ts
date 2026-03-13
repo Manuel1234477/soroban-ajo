@@ -7,6 +7,11 @@ import type {
   WalletProvider,
   WalletSignatureResult,
 } from '../types/auth'
+import {
+  ensureFreighterAllowed,
+  getStellarNetworkFromFreighter,
+  waitForFreighterApi,
+} from '@/utils/freighter'
 
 const DEFAULT_CONFIG: SessionConfig = {
   sessionDuration: 30 * 60 * 1000,
@@ -164,18 +169,10 @@ class AuthService {
 
     switch (provider) {
       case 'freighter': {
-        // Wait for Freighter to load (it injects asynchronously)
-        let freighter = (window as any).freighterApi
-        if (!freighter) {
-          // Wait up to 3 seconds for Freighter to load
-          for (let i = 0; i < 30; i++) {
-            await new Promise(resolve => setTimeout(resolve, 100))
-            if ((window as any).freighterApi) {
-              freighter = (window as any).freighterApi
-              break
-            }
-          }
-        }
+        const freighter = await waitForFreighterApi({
+          timeoutMs: 3000,
+          intervalMs: 100,
+        })
 
         if (typeof window === 'undefined' || !freighter) {
           throw new AuthError(
@@ -184,10 +181,7 @@ class AuthService {
           )
         }
 
-        const isAllowed = await freighter.isAllowed()
-        if (!isAllowed) {
-          await freighter.setAllowed()
-        }
+        await ensureFreighterAllowed(freighter)
 
         const address: string = await freighter.getPublicKey()
         if (!isValidStellarAddress(address)) {
@@ -197,12 +191,16 @@ class AuthService {
           )
         }
 
-        const networkDetails = await freighter.getNetworkDetails()
+        const networkDetails = await freighter.getNetworkDetails?.()
+        const freighterNetwork = getStellarNetworkFromFreighter(networkDetails)
         const network: StellarNetwork =
-          networkDetails?.network === 'PUBLIC' ? 'mainnet' : 'testnet'
+          freighterNetwork === 'mainnet' ? 'mainnet' : 'testnet'
 
         let signature: string
         try {
+          if (!freighter.signAuthEntry) {
+            throw new Error('signAuthEntry unavailable')
+          }
           signature = await freighter.signAuthEntry(challenge)
         } catch {
           // Fallback: use the challenge itself as proof if signAuthEntry is unavailable
