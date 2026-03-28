@@ -229,6 +229,32 @@ export class EmailService {
     const html = renderTemplate('emailVerification', { verifyLink })
     return this.sendEmail({ to, subject: 'Verify Your Email', html })
   }
+
+  async sendMonthlyReport(
+    to: string,
+    data: {
+      monthOf: string
+      totalContributed: string
+      totalReceived: string
+      groupsJoined: number
+      groupsCompleted: number
+      contributionCount: number
+      groups: Array<{ name: string; contributions: number; balance: string; status: string }>
+    }
+  ): Promise<boolean> {
+    const html = renderTemplate('monthlyReport', {
+      monthOf: data.monthOf,
+      totalContributed: data.totalContributed,
+      totalReceived: data.totalReceived,
+      groupsJoined: data.groupsJoined,
+      groupsCompleted: data.groupsCompleted,
+      contributionCount: data.contributionCount,
+      groupRows: buildGroupRows(data.groups),
+      dashboardUrl: `${this.frontendUrl}/dashboard`,
+      unsubscribeUrl: this.unsubscribeBase,
+    })
+    return this.sendEmail({ to, subject: `Your Monthly Ajo Report — ${data.monthOf}`, html })
+  }
 }
 
 export const emailService = new EmailService()
