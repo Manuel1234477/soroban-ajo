@@ -16,6 +16,8 @@ export interface NotificationPayload {
     | 'cycle_completed'
     | 'group_created'
     | 'announcement'
+    | 'group_invitation'
+    | 'invitation_response'
   title: string
   message: string
   timestamp: number

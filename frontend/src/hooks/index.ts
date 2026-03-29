@@ -9,6 +9,8 @@ export { useTransactionHistory } from './useTransactionHistory'
 export type { TxRow, TxFilters, TxSort, PageSizeOption } from './useTransactionHistory'
 export { useGroupAnalytics } from './useGroupAnalytics'
 export type { AnalyticsSummary, ContributionTrend, MemberStat, GroupPerformance, TopContributor } from './useGroupAnalytics'
+export { useInvitations } from './useInvitations'
+export type { Invitation, InvitationDraft, InvitationStatus, InvitationDirection, InvitationChannel } from './useInvitations'
 
 // Penalty hooks
 export {
