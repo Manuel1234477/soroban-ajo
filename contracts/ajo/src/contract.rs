@@ -2230,4 +2230,331 @@ pub fn get_refund_record(
     pub fn is_multi_token_group(env: Env, group_id: u64) -> bool {
         storage::is_multi_token_group(&env, group_id)
     }
+
+    // ── Dispute Resolution ────────────────────────────────────────────────
+
+    /// File a dispute against a member in a group.
+    ///
+    /// Both complainant and defendant must be members of the group.
+    ///
+    /// # Errors
+    /// * `GroupNotFound` – group doesn't exist
+    /// * `NotMember` – complainant or defendant is not a member
+    pub fn file_dispute(
+        env: Env,
+        complainant: Address,
+        group_id: u64,
+        defendant: Address,
+        dispute_type: crate::types::DisputeType,
+        description: soroban_sdk::String,
+        evidence_hash: soroban_sdk::BytesN<32>,
+        proposed_resolution: crate::types::DisputeResolution,
+    ) -> Result<u64, AjoError> {
+        pausable::ensure_not_paused(&env)?;
+        complainant.require_auth();
+
+        let group = storage::get_group(&env, group_id).ok_or(AjoError::GroupNotFound)?;
+
+        if !utils::is_member(&group.members, &complainant) {
+            return Err(AjoError::NotMember);
+        }
+        if !utils::is_member(&group.members, &defendant) {
+            return Err(AjoError::NotMember);
+        }
+
+        let now = utils::get_current_timestamp(&env);
+        let dispute_id = storage::get_next_dispute_id(&env);
+
+        let dispute = crate::types::Dispute {
+            id: dispute_id,
+            group_id,
+            dispute_type,
+            complainant: complainant.clone(),
+            defendant: defendant.clone(),
+            description,
+            evidence_hash,
+            status: crate::types::DisputeStatus::Open,
+            created_at: now,
+            voting_deadline: now + crate::types::DISPUTE_VOTING_PERIOD,
+            votes_for_action: 0,
+            votes_against_action: 0,
+            proposed_resolution,
+            final_resolution: None,
+        };
+
+        storage::store_dispute(&env, dispute_id, &dispute);
+
+        // Track dispute ID under the group
+        let mut ids = storage::get_group_dispute_ids(&env, group_id);
+        ids.push_back(dispute_id);
+        storage::store_group_dispute_ids(&env, group_id, &ids);
+
+        events::emit_dispute_filed(&env, dispute_id, group_id, &complainant, &defendant);
+
+        Ok(dispute_id)
+    }
+
+    /// Vote on an open dispute.
+    ///
+    /// Any group member (except the defendant) may vote once during the voting period.
+    ///
+    /// # Errors
+    /// * `DisputeNotFound` – dispute doesn't exist
+    /// * `DisputeAlreadyResolved` – dispute is already resolved
+    /// * `NotDisputeMember` – voter is not a member of the group
+    /// * `AlreadyVotedOnDispute` – voter has already voted
+    /// * `VotingPeriodEndedDispute` – voting period has ended
+    pub fn vote_on_dispute(
+        env: Env,
+        voter: Address,
+        dispute_id: u64,
+        supports_action: bool,
+    ) -> Result<(), AjoError> {
+        pausable::ensure_not_paused(&env)?;
+        voter.require_auth();
+
+        let mut dispute = storage::get_dispute(&env, dispute_id)
+            .ok_or(AjoError::DisputeNotFound)?;
+
+        if dispute.status == crate::types::DisputeStatus::Resolved
+            || dispute.status == crate::types::DisputeStatus::Rejected
+        {
+            return Err(AjoError::DisputeAlreadyResolved);
+        }
+
+        let group = storage::get_group(&env, dispute.group_id).ok_or(AjoError::GroupNotFound)?;
+        if !utils::is_member(&group.members, &voter) {
+            return Err(AjoError::NotDisputeMember);
+        }
+
+        if storage::has_voted_on_dispute(&env, dispute_id, &voter) {
+            return Err(AjoError::AlreadyVotedOnDispute);
+        }
+
+        let now = utils::get_current_timestamp(&env);
+        if now > dispute.voting_deadline {
+            return Err(AjoError::VotingPeriodEndedDispute);
+        }
+
+        let vote = crate::types::DisputeVote {
+            dispute_id,
+            voter: voter.clone(),
+            supports_action,
+            timestamp: now,
+        };
+        storage::store_dispute_vote(&env, dispute_id, &voter, &vote);
+
+        if supports_action {
+            dispute.votes_for_action += 1;
+        } else {
+            dispute.votes_against_action += 1;
+        }
+        dispute.status = crate::types::DisputeStatus::Voting;
+        storage::store_dispute(&env, dispute_id, &dispute);
+
+        events::emit_dispute_vote(&env, dispute_id, &voter, supports_action);
+
+        Ok(())
+    }
+
+    /// Resolve a dispute after the voting period ends.
+    ///
+    /// If ≥66% of votes support the action, the proposed resolution is applied.
+    /// Otherwise the dispute is rejected.
+    ///
+    /// # Errors
+    /// * `DisputeNotFound` – dispute doesn't exist
+    /// * `DisputeAlreadyResolved` – already resolved
+    /// * `VotingPeriodActive` – voting period hasn't ended yet
+    pub fn resolve_dispute(
+        env: Env,
+        resolver: Address,
+        dispute_id: u64,
+    ) -> Result<(), AjoError> {
+        pausable::ensure_not_paused(&env)?;
+        resolver.require_auth();
+
+        let mut dispute = storage::get_dispute(&env, dispute_id)
+            .ok_or(AjoError::DisputeNotFound)?;
+
+        if dispute.status == crate::types::DisputeStatus::Resolved
+            || dispute.status == crate::types::DisputeStatus::Rejected
+        {
+            return Err(AjoError::DisputeAlreadyResolved);
+        }
+
+        let now = utils::get_current_timestamp(&env);
+        if now <= dispute.voting_deadline {
+            return Err(AjoError::VotingPeriodActive);
+        }
+
+        let total_votes = dispute.votes_for_action + dispute.votes_against_action;
+        let approved = total_votes > 0
+            && (dispute.votes_for_action * 100 / total_votes)
+                >= crate::types::DISPUTE_APPROVAL_THRESHOLD;
+
+        if approved {
+            dispute.status = crate::types::DisputeStatus::Resolved;
+            dispute.final_resolution = Some(dispute.proposed_resolution);
+
+            // Apply resolution
+            match dispute.proposed_resolution {
+                crate::types::DisputeResolution::Penalty => {
+                    let group = storage::get_group(&env, dispute.group_id)
+                        .ok_or(AjoError::GroupNotFound)?;
+                    let penalty_amount = group.contribution_amount
+                        * (group.penalty_rate as i128)
+                        / 100;
+                    let pool = storage::get_cycle_penalty_pool(&env, dispute.group_id, group.current_cycle);
+                    storage::store_cycle_penalty_pool(
+                        &env,
+                        dispute.group_id,
+                        group.current_cycle,
+                        pool + penalty_amount,
+                    );
+                    // Record penalty on defendant
+                    let mut penalty_record = storage::get_member_penalty(
+                        &env,
+                        dispute.group_id,
+                        &dispute.defendant,
+                    )
+                    .unwrap_or(crate::types::MemberPenaltyRecord {
+                        member: dispute.defendant.clone(),
+                        group_id: dispute.group_id,
+                        late_count: 0,
+                        on_time_count: 0,
+                        total_penalties: 0,
+                        reliability_score: 100,
+                    });
+                    penalty_record.late_count += 1;
+                    penalty_record.total_penalties += penalty_amount;
+                    storage::store_member_penalty(&env, dispute.group_id, &dispute.defendant, &penalty_record);
+                }
+                crate::types::DisputeResolution::Removal => {
+                    let mut group = storage::get_group(&env, dispute.group_id)
+                        .ok_or(AjoError::GroupNotFound)?;
+                    let mut new_members = Vec::new(&env);
+                    for m in group.members.iter() {
+                        if m != dispute.defendant {
+                            new_members.push_back(m);
+                        }
+                    }
+                    group.members = new_members;
+                    storage::store_group(&env, dispute.group_id, &group);
+                }
+                crate::types::DisputeResolution::Refund => {
+                    let group = storage::get_group(&env, dispute.group_id)
+                        .ok_or(AjoError::GroupNotFound)?;
+                    let refund_record = crate::types::RefundRecord {
+                        group_id: dispute.group_id,
+                        member: dispute.complainant.clone(),
+                        amount: group.contribution_amount,
+                        reason: crate::types::RefundReason::DisputeRefund,
+                        timestamp: now,
+                    };
+                    storage::store_refund_record(
+                        &env,
+                        dispute.group_id,
+                        &dispute.complainant,
+                        &refund_record,
+                    );
+                }
+                _ => {}
+            }
+        } else {
+            dispute.status = crate::types::DisputeStatus::Rejected;
+            dispute.final_resolution = Some(crate::types::DisputeResolution::NoAction);
+        }
+
+        storage::store_dispute(&env, dispute_id, &dispute);
+        events::emit_dispute_resolved(&env, dispute_id, dispute.group_id, dispute.final_resolution.unwrap());
+
+        Ok(())
+    }
+
+    /// Returns a dispute by ID.
+    ///
+    /// # Errors
+    /// * `DisputeNotFound` – dispute doesn't exist
+    pub fn get_dispute(env: Env, dispute_id: u64) -> Result<crate::types::Dispute, AjoError> {
+        storage::get_dispute(&env, dispute_id).ok_or(AjoError::DisputeNotFound)
+    }
+
+    /// Returns all dispute IDs for a group.
+    pub fn get_group_disputes(env: Env, group_id: u64) -> Vec<u64> {
+        storage::get_group_dispute_ids(&env, group_id)
+    }
+
+    // ── Group templates ───────────────────────────────────────────────────
+
+    /// Create a group using a predefined template.
+    ///
+    /// Applies the template's default cycle duration, grace period, and penalty
+    /// rate while letting the caller choose the contribution amount and member cap.
+    /// The contribution amount must be at least the template's
+    /// `suggested_contribution_min`.
+    ///
+    /// # Arguments
+    /// * `env`                  - The Soroban contract environment
+    /// * `creator`              - Address of the group creator
+    /// * `token_address`        - Token contract address for contributions/payouts
+    /// * `template`             - The [`GroupTemplate`] to apply
+    /// * `contribution_amount`  - Contribution per cycle in stroops (≥ template min)
+    /// * `max_members`          - Maximum members (2–100)
+    ///
+    /// # Returns
+    /// The unique group ID of the newly created group.
+    ///
+    /// # Errors
+    /// * `ContributionAmountZero` – if `contribution_amount` is below the template minimum
+    /// * Standard [`create_group`] errors for invalid parameters
+    pub fn create_group_from_template(
+        env: Env,
+        creator: Address,
+        token_address: Address,
+        template: crate::types::GroupTemplate,
+        contribution_amount: i128,
+        max_members: u32,
+    ) -> Result<u64, AjoError> {
+        let config = utils::get_template_config(template);
+
+        // Enforce template minimum contribution
+        if contribution_amount < config.suggested_contribution_min {
+            return Err(AjoError::ContributionAmountZero);
+        }
+
+        Self::create_group(
+            env,
+            creator,
+            token_address,
+            contribution_amount,
+            config.default_cycle_duration,
+            max_members,
+            config.default_grace_period,
+            config.default_penalty_rate,
+            0, // No insurance by default
+        )
+    }
+
+    /// Return the [`TemplateConfig`] for a given [`GroupTemplate`].
+    ///
+    /// Useful for clients that want to display template defaults before
+    /// asking the user to confirm or customise parameters.
+    pub fn get_template_config(
+        _env: Env,
+        template: crate::types::GroupTemplate,
+    ) -> crate::types::TemplateConfig {
+        utils::get_template_config(template)
+    }
+
+    /// Return all available [`GroupTemplate`] variants.
+    pub fn list_available_templates(env: Env) -> Vec<crate::types::GroupTemplate> {
+        let mut templates = Vec::new(&env);
+        templates.push_back(crate::types::GroupTemplate::MonthlySavings);
+        templates.push_back(crate::types::GroupTemplate::WeeklySavings);
+        templates.push_back(crate::types::GroupTemplate::EmergencyFund);
+        templates.push_back(crate::types::GroupTemplate::InvestmentClub);
+        templates.push_back(crate::types::GroupTemplate::Custom);
+        templates
+    }
 }

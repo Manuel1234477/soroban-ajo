@@ -83,39 +83,10 @@ export class WebhookService {
   }
 
   /**
-   * Register a new webhook endpoint (persisted to DB)
-   */
-  async registerEndpointAsync(endpoint: Omit<WebhookEndpoint, 'id'>): Promise<string> {
-    const retryConfig = endpoint.retryConfig || { maxRetries: 3, retryDelay: 1000 }
-
-    const record = await prisma.webhookSubscription.create({
-      data: {
-        url: endpoint.url,
-        secret: endpoint.secret,
-        events: JSON.stringify(endpoint.events),
-        enabled: endpoint.enabled,
-        retryConfig: JSON.stringify(retryConfig),
-        headers: endpoint.headers ? JSON.stringify(endpoint.headers) : null,
-      },
-    })
-
-    const webhookEndpoint: WebhookEndpoint = {
-      id: record.id,
-      url: record.url,
-      secret: record.secret,
-      events: JSON.parse(record.events) as WebhookEventType[],
-      enabled: record.enabled,
-      retryConfig,
-      headers: record.headers ? JSON.parse(record.headers) : undefined,
-    }
-
-    this.endpoints.set(record.id, webhookEndpoint)
-    logger.info('Webhook endpoint registered', { endpointId: record.id, url: endpoint.url })
-    return record.id
-  }
-
-  /**
-   * Register a new webhook endpoint (synchronous, in-memory only — for env-loaded endpoints)
+   * Registers a new external webhook endpoint to receive platform events.
+   * 
+   * @param endpoint - Configuration and target URL for the webhook
+   * @returns The newly generated unique ID for the endpoint
    */
   registerEndpoint(endpoint: Omit<WebhookEndpoint, 'id'>): string {
     const id = crypto.randomUUID()
@@ -206,11 +177,16 @@ export class WebhookService {
   }
 
   /**
-   * Trigger a webhook event
+   * Triggers a specific platform event, queuing it for delivery to all subscribed webhooks.
+   * 
+   * @param event - The type of event (e.g., 'group.created')
+   * @param data - The event-specific payload
+   * @param metadata - Optional context like groupId or transactionHash
    */
   async triggerEvent(
     event: WebhookEventType,
     data: Record<string, any>,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     metadata?: WebhookPayload['metadata']
   ): Promise<void> {
     const payload: WebhookPayload = {
