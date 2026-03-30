@@ -1,6 +1,8 @@
 import { Router } from 'express';
 import { HealthCheckService } from '../services/healthCheck';
 import { register } from '../services/metricsService';
+import { healthMonitor } from '../monitoring/healthMonitor';
+import { alertingService } from '../monitoring/alerting';
 
 const router = Router();
 const healthCheck = new HealthCheckService();
@@ -37,6 +39,13 @@ router.get('/health', async (req, res) => {
 router.get('/metrics', async (req, res) => {
   res.set('Content-Type', register.contentType);
   res.end(await register.metrics());
+});
+
+// Live monitor snapshot (latest poll result + alert history)
+router.get('/health/monitor', (req, res) => {
+  const snapshot = healthMonitor.getLastSnapshot();
+  const alerts = alertingService.getHistory();
+  res.json({ snapshot, alerts });
 });
 
 export const healthRouter = router;
