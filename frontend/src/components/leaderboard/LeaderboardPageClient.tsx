@@ -4,22 +4,14 @@ import { motion } from 'framer-motion'
 import { Leaderboard } from '@/components/leaderboard/Leaderboard'
 import { useLeaderboard } from '@/hooks/useLeaderboard'
 
-export default function LeaderboardPage() {
-  const {
-    period,
-    setPeriod,
-    topContributors,
-    mostReliable,
-    groupAchievements,
-  } = useLeaderboard()
+export function LeaderboardPageClient() {
+  const { period, setPeriod, topContributors, mostReliable, groupAchievements } = useLeaderboard()
 
   return (
     <main className="min-h-screen bg-gray-50 px-4 py-8 dark:bg-slate-950 md:px-8">
       <div className="mx-auto max-w-6xl space-y-6">
         <header>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">
-            Member Leaderboard
-          </h1>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Member Leaderboard</h1>
           <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
             Track top contributors, reliability rankings, streak performance, and group achievements.
           </p>
@@ -44,9 +36,7 @@ export default function LeaderboardPage() {
         </div>
 
         <section className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-700 dark:bg-gray-900">
-          <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">
-            Group Achievement Rankings
-          </h2>
+          <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">Group Achievement Rankings</h2>
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
             Badges and milestones unlocked by the circle as a whole.
           </p>
@@ -62,14 +52,9 @@ export default function LeaderboardPage() {
               >
                 <div className="mb-2 flex items-center justify-between gap-3">
                   <div>
-                    <h3 className="font-semibold text-gray-900 dark:text-gray-100">
-                      {achievement.title}
-                    </h3>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">
-                      {achievement.description}
-                    </p>
+                    <h3 className="font-semibold text-gray-900 dark:text-gray-100">{achievement.title}</h3>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">{achievement.description}</p>
                   </div>
-
                   <span
                     className={`rounded-full px-3 py-1 text-xs font-semibold ${
                       achievement.completed
@@ -89,10 +74,7 @@ export default function LeaderboardPage() {
                     transition={{ duration: 0.45, delay: 0.1 + index * 0.06 }}
                   />
                 </div>
-
-                <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                  {achievement.progress}% complete
-                </p>
+                <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">{achievement.progress}% complete</p>
               </motion.div>
             ))}
           </div>
