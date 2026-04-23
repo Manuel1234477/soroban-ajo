@@ -906,3 +906,37 @@ pub fn get_group_dispute_ids(env: &Env, group_id: u64) -> Vec<u64> {
     let key = (symbol_short!("DISPGIDS"), group_id);
     env.storage().persistent().get(&key).unwrap_or_else(|| Vec::new(env))
 }
+
+// ── Escrow storage ────────────────────────────────────────────────────────
+
+/// Returns the next escrow ID and increments the counter.
+pub fn get_next_escrow_id(env: &Env) -> u64 {
+    let key = symbol_short!("ECOUNTER");
+    let id: u64 = env.storage().instance().get(&key).unwrap_or(0);
+    env.storage().instance().set(&key, &(id + 1));
+    id
+}
+
+/// Stores an escrow record.
+pub fn store_escrow(env: &Env, id: u64, escrow: &crate::types::Escrow) {
+    let key = (symbol_short!("ESCROW"), id);
+    env.storage().persistent().set(&key, escrow);
+}
+
+/// Retrieves an escrow by ID.
+pub fn get_escrow(env: &Env, id: u64) -> Option<crate::types::Escrow> {
+    let key = (symbol_short!("ESCROW"), id);
+    env.storage().persistent().get(&key)
+}
+
+/// Stores the list of escrow IDs for a group.
+pub fn store_group_escrow_ids(env: &Env, group_id: u64, ids: &Vec<u64>) {
+    let key = (symbol_short!("ESCGRP"), group_id);
+    env.storage().persistent().set(&key, ids);
+}
+
+/// Retrieves the list of escrow IDs for a group.
+pub fn get_group_escrow_ids(env: &Env, group_id: u64) -> Vec<u64> {
+    let key = (symbol_short!("ESCGRP"), group_id);
+    env.storage().persistent().get(&key).unwrap_or_else(|| Vec::new(env))
+}

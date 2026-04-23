@@ -33,3 +33,4 @@ pub use types::{GroupMilestone, MemberAchievement, MilestoneRecord, AchievementR
 pub use types::{TokenConfig, MultiTokenConfig, TokenContribution};
 pub use types::{Dispute, DisputeType, DisputeStatus, DisputeResolution, DisputeVote};
 pub use types::{GroupTemplate, TemplateConfig};
+pub use types::{Escrow, EscrowStatus, EscrowCondition};

@@ -264,3 +264,33 @@ pub fn emit_dispute_resolved(
     let topics = (symbol_short!("disres"), dispute_id);
     env.events().publish(topics, (group_id, resolution));
 }
+
+// ── Escrow events ─────────────────────────────────────────────────────────
+
+pub fn emit_escrow_created(env: &Env, escrow_id: u64, depositor: &Address, beneficiary: &Address, amount: i128) {
+    env.events().publish(
+        (symbol_short!("ESC_NEW"), escrow_id),
+        (depositor, beneficiary, amount),
+    );
+}
+
+pub fn emit_escrow_released(env: &Env, escrow_id: u64, beneficiary: &Address, amount: i128) {
+    env.events().publish(
+        (symbol_short!("ESC_REL"), escrow_id),
+        (beneficiary, amount),
+    );
+}
+
+pub fn emit_escrow_refunded(env: &Env, escrow_id: u64, depositor: &Address, amount: i128) {
+    env.events().publish(
+        (symbol_short!("ESC_RFD"), escrow_id),
+        (depositor, amount),
+    );
+}
+
+pub fn emit_escrow_disputed(env: &Env, escrow_id: u64, dispute_id: u64, filer: &Address) {
+    env.events().publish(
+        (symbol_short!("ESC_DIS"), escrow_id),
+        (dispute_id, filer),
+    );
+}

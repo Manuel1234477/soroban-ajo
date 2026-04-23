@@ -709,3 +709,62 @@ pub struct TemplateConfig {
     /// Suggested maximum number of members.
     pub suggested_max_members: u32,
 }
+
+// ── Escrow system ─────────────────────────────────────────────────────────
+
+/// Current lifecycle state of an escrow.
+#[contracttype]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, PartialOrd, Ord)]
+#[repr(u32)]
+pub enum EscrowStatus {
+    /// Funds are locked and awaiting release conditions.
+    Active = 0,
+    /// Funds have been released to the beneficiary.
+    Released = 1,
+    /// Funds have been refunded to the depositor.
+    Refunded = 2,
+    /// A dispute has been filed; funds are frozen pending resolution.
+    Disputed = 3,
+}
+
+/// Condition that must be satisfied before funds are automatically released.
+#[contracttype]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[repr(u32)]
+pub enum EscrowCondition {
+    /// Release after a fixed Unix timestamp (time-based release).
+    TimeLock = 0,
+    /// Release requires explicit approval from the depositor.
+    ManualApproval = 1,
+    /// Release is triggered when the associated group cycle completes.
+    GroupCycleComplete = 2,
+}
+
+/// An escrow record holding funds on behalf of a depositor for a beneficiary.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Escrow {
+    /// Unique escrow identifier.
+    pub id: u64,
+    /// Optional group this escrow is associated with (0 = standalone).
+    pub group_id: u64,
+    /// Address that deposited the funds.
+    pub depositor: Address,
+    /// Address that will receive the funds on release.
+    pub beneficiary: Address,
+    /// Token contract address for the escrowed funds.
+    pub token_address: Address,
+    /// Amount held in escrow (in token's native units).
+    pub amount: i128,
+    /// Release condition type.
+    pub condition: EscrowCondition,
+    /// Unix timestamp after which funds can be released (used for `TimeLock`
+    /// and as a dispute deadline for `ManualApproval`/`GroupCycleComplete`).
+    pub release_time: u64,
+    /// Current status of the escrow.
+    pub status: EscrowStatus,
+    /// Unix timestamp when the escrow was created.
+    pub created_at: u64,
+    /// Optional linked dispute ID (0 = none).
+    pub dispute_id: u64,
+}
