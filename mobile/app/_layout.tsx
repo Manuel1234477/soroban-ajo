@@ -7,17 +7,19 @@ import * as Linking from 'expo-linking';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useAuthStore } from '../src/store/authStore';
 import { useBiometrics } from '../src/hooks/useBiometrics';
+import { useTheme, ThemeProvider } from '../src/hooks/useTheme';
 import { BiometricPrompt } from '../src/components/BiometricPrompt';
 import { OfflineBanner } from '../src/components/OfflineBanner';
 import { TwoFactorScreen } from '../src/screens/auth/TwoFactorScreen';
 import { Button } from '../src/components/ui/Button';
-import { Colors, Spacing, Typography } from '../src/constants/theme';
+import { Spacing, Typography } from '../src/constants/theme';
 
 SplashScreen.preventAutoHideAsync();
 
 function BiometricGate() {
   const { requiresBiometric, unlockWithBiometric, logout } = useAuthStore();
   const { supportedTypes, authenticate } = useBiometrics();
+  const { colors } = useTheme();
   const [showPrompt, setShowPrompt] = useState(true);
   const [isAuthenticating, setIsAuthenticating] = useState(false);
 
@@ -33,9 +35,9 @@ function BiometricGate() {
   if (!requiresBiometric) return null;
 
   return (
-    <View style={gateStyles.container}>
-      <Text style={gateStyles.title}>Ajo is locked</Text>
-      <Text style={gateStyles.sub}>Authenticate to continue</Text>
+    <View style={[gateStyles.container, { backgroundColor: colors.surface[50] }]}>
+      <Text style={[gateStyles.title, { color: colors.surface[900] }]}>Ajo is locked</Text>
+      <Text style={[gateStyles.sub, { color: colors.surface[500] }]}>Authenticate to continue</Text>
       <Button title="Unlock" onPress={handleAuth} loading={isAuthenticating} size="lg" style={gateStyles.btn} />
       <Button title="Sign Out" onPress={logout} variant="ghost" style={gateStyles.btn} />
       <BiometricPrompt
@@ -53,35 +55,35 @@ function BiometricGate() {
 const gateStyles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.surface[50],
     alignItems: 'center',
     justifyContent: 'center',
     gap: Spacing.md,
     padding: Spacing.xl,
   },
-  title: { ...Typography.h2, color: Colors.surface[900] },
-  sub: { ...Typography.body, color: Colors.surface[500] },
+  title: { ...Typography.h2 },
+  sub: { ...Typography.body },
   btn: { width: '100%' },
 });
 
-export default function RootLayout() {
+function AppContent() {
   const { initialize, isLoading, requiresBiometric, twoFactorChallenge } = useAuthStore();
+  const { isDark } = useTheme();
+  const { colors } = useTheme();
+  const handleDeepLink = () => {};
 
   useEffect(() => {
     initialize().finally(() => SplashScreen.hideAsync());
 
-    // Set up deep link listener
     const subscription = Linking.addEventListener('url', handleDeepLink);
 
-    // Check for initial URL if app was opened via deep link
     Linking.getInitialURL().then((url) => {
-      if (url) handleDeepLink({ url });
+      if (url) handleDeepLink();
     });
 
     return () => {
       subscription.remove();
     };
-  }, [initialize, handleDeepLink]);
+  }, [initialize]);
 
   if (isLoading) return null;
 
@@ -91,7 +93,7 @@ export default function RootLayout() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <StatusBar style="auto" />
+      <StatusBar style={isDark ? 'light' : 'dark'} />
       <OfflineBanner />
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="index" />
@@ -104,5 +106,13 @@ export default function RootLayout() {
         <Stack.Screen name="group-qr/[id]" options={{ headerShown: true, title: 'Group QR Code', presentation: 'modal' }} />
       </Stack>
     </GestureHandlerRootView>
+  );
+}
+
+export default function RootLayout() {
+  return (
+    <ThemeProvider>
+      <AppContent />
+    </ThemeProvider>
   );
 }
