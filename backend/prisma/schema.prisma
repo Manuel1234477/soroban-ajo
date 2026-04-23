@@ -664,3 +664,93 @@ model EventStore {
   @@index([type])
   @@index([sequenceNumber])
 }
+
+// ─── ML Fraud Detection ───────────────────────────────────────────────────────
+
+model FraudAlert {
+  id         String    @id @default(cuid())
+  userId     String
+  alertType  String
+  severity   String    // LOW | MEDIUM | HIGH | CRITICAL
+  score      Float
+  details    String    @db.Text // JSON
+  status     String    @default("OPEN") // OPEN | REVIEWING | RESOLVED | DISMISSED
+  reviewedAt DateTime?
+  reviewedBy String?
+  resolution String?
+  createdAt  DateTime  @default(now())
+
+  @@index([userId])
+  @@index([status])
+  @@index([severity])
+  @@index([createdAt(sort: Desc)])
+}
+
+// ─── GDPR Compliance ──────────────────────────────────────────────────────────
+
+model ConsentRecord {
+  id          String   @id @default(cuid())
+  userId      String
+  consentType String   // ANALYTICS | MARKETING | FUNCTIONAL | NECESSARY
+  status      String   // GRANTED | DENIED | WITHDRAWN
+  ipAddress   String?
+  userAgent   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([userId, consentType])
+  @@index([userId])
+  @@index([consentType])
+}
+
+model DeletionRequest {
+  id              String    @id @default(cuid())
+  userId          String
+  reason          String?
+  status          String    @default("PENDING") // PENDING | PROCESSING | COMPLETED | REJECTED
+  requestedAt     DateTime  @default(now())
+  completedAt     DateTime?
+  rejectionReason String?
+
+  @@index([userId])
+  @@index([status])
+  @@index([requestedAt(sort: Desc)])
+}
+
+// ─── Security Audit Logging ───────────────────────────────────────────────────
+
+model SecurityLog {
+  id        String   @id @default(cuid())
+  eventType String
+  severity  String   // INFO | WARNING | CRITICAL
+  userId    String?
+  ipAddress String?
+  userAgent String?
+  resource  String?
+  action    String?
+  outcome   String   // SUCCESS | FAILURE | BLOCKED
+  metadata  String   @db.Text // JSON
+  createdAt DateTime @default(now())
+
+  @@index([eventType, createdAt(sort: Desc)])
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([ipAddress, createdAt(sort: Desc)])
+  @@index([severity])
+  @@index([outcome])
+}
+
+model IntrusionAlert {
+  id        String   @id @default(cuid())
+  alertType String
+  severity  String   // INFO | WARNING | CRITICAL
+  ipAddress String?
+  userId    String?
+  details   String   @db.Text // JSON
+  status    String   @default("OPEN") // OPEN | INVESTIGATING | RESOLVED
+  createdAt DateTime @default(now())
+
+  @@index([status])
+  @@index([severity])
+  @@index([ipAddress])
+  @@index([createdAt(sort: Desc)])
+}
