@@ -87,7 +87,6 @@ jobs:
           name: frontend-build
           path: frontend/.next
           retention-days: 7
-        continue-on-error: true
 
       - name: Upload Backend Build Artifacts
         if: success()
@@ -96,7 +95,6 @@ jobs:
           name: backend-build
           path: backend/dist
           retention-days: 7
-        continue-on-error: true
 
   # Job 3: Smart Contract Build
   contracts:
