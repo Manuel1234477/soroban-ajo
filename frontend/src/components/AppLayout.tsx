@@ -22,6 +22,7 @@ import { ThemeToggle } from './ThemeToggle'
 import { useOnboarding } from '@/hooks/useOnboarding'
 import { GlobalSearch } from './GlobalSearch'
 import { LiveRegion } from './LiveRegion'
+import { PWAUpdateBanner } from './PWAUpdateBanner'
 
 interface AppLayoutProps {
   children: React.ReactNode
@@ -285,6 +286,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
         </footer>
       </div>
       <LiveRegion />
+      <PWAUpdateBanner />
     
   )
 }
