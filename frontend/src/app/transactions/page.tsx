@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
-import { Download, FileText, ArrowLeft } from 'lucide-react';
+import React, { useState, useMemo, useCallback, useRef } from 'react';
+import { Download, FileText, ArrowLeft, RefreshCw } from 'lucide-react';
 import Link from 'next/link';
 import { useAuth } from '@/hooks/useAuth';
 import { useGroups } from '@/hooks/useContractData';
@@ -24,10 +24,10 @@ function seedTransactions(groups: { id: string; name: string }[]): TxRow[] {
     'GDDEF...XYZ4', 'GEEFG...XYZ5',
   ];
 
-  return Array.from({ length: 60 }, (_, i) => {
+  return Array.from({ length: 120 }, (_, i) => {
     const group = groups[i % groups.length];
     const type = types[i % types.length];
-    const daysAgo = i * 3;
+    const daysAgo = i * 2;
     const date = new Date(Date.now() - daysAgo * 86_400_000).toISOString();
     return {
       id: `tx-${i + 1}`,
@@ -43,14 +43,25 @@ function seedTransactions(groups: { id: string; name: string }[]): TxRow[] {
   });
 }
 
+// ─── Infinite scroll hook ─────────────────────────────────────────────────────
+
+const INFINITE_PAGE_SIZE = 25;
+
+function useInfiniteTransactions(all: TxRow[]) {
+  const [loadedCount, setLoadedCount] = useState(INFINITE_PAGE_SIZE);
+  const hasMore = loadedCount < all.length;
+  const loadMore = useCallback(() => {
+    setLoadedCount((c) => Math.min(c + INFINITE_PAGE_SIZE, all.length));
+  }, [all.length]);
+  return { rows: all.slice(0, loadedCount), hasMore, loadMore };
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function TransactionsPage() {
   const { address } = useAuth();
   const { data: groups = [], isLoading: groupsLoading } = useGroups(address ?? undefined);
 
-  // Build flat transaction list across all groups
-  // TODO: replace seedTransactions() with real API call e.g. useAllTransactions(address)
   const allTransactions = useMemo<TxRow[]>(
     () => seedTransactions(groups.map((g) => ({ id: g.id, name: g.name }))),
     [groups]
@@ -63,9 +74,12 @@ export default function TransactionsPage() {
 
   const {
     filters, sort, page, pageSize, totalPages, totalFiltered, totalAll,
-    rows, exportData,
+    rows: filteredRows, exportData,
     updateFilter, resetFilters, toggleSort, setPage, changePageSize,
   } = useTransactionHistory(allTransactions);
+
+  // Infinite scroll on top of filtered rows
+  const { rows, hasMore, loadMore } = useInfiniteTransactions(filteredRows);
 
   // Detail modal
   const [selectedTx, setSelectedTx] = useState<TxRow | null>(null);
@@ -144,24 +158,41 @@ export default function TransactionsPage() {
           onReset={resetFilters}
         />
 
-        {/* Table */}
+        {/* Table — virtual scroll activates automatically for >100 rows */}
         <TransactionsTable
           rows={rows}
           sort={sort}
           onSort={toggleSort}
           onRowClick={setSelectedTx}
           isLoading={groupsLoading}
+          onLoadMore={loadMore}
+          hasMore={hasMore}
         />
 
-        {/* Pagination */}
-        <Pagination
-          page={page}
-          totalPages={totalPages}
-          pageSize={pageSize}
-          totalFiltered={totalFiltered}
-          onPageChange={setPage}
-          onPageSizeChange={changePageSize}
-        />
+        {/* Load more button (fallback for non-scroll users) */}
+        {hasMore && (
+          <div className="flex justify-center">
+            <button
+              onClick={loadMore}
+              className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-medium rounded-xl border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors shadow-sm"
+            >
+              <RefreshCw className="w-4 h-4" />
+              Load more ({filteredRows.length - rows.length} remaining)
+            </button>
+          </div>
+        )}
+
+        {/* Pagination (shown when not using infinite scroll) */}
+        {!hasMore && totalPages > 1 && (
+          <Pagination
+            page={page}
+            totalPages={totalPages}
+            pageSize={pageSize}
+            totalFiltered={totalFiltered}
+            onPageChange={setPage}
+            onPageSizeChange={changePageSize}
+          />
+        )}
 
       </div>
 

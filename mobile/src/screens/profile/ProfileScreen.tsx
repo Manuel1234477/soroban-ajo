@@ -13,15 +13,17 @@ import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useAuthStore } from '../../store/authStore';
+import { useTheme } from '../../hooks/useTheme';
 import { fetchProfile } from '../../services/api';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
-import { Colors, Spacing, Typography, BorderRadius } from '../../constants/theme';
+import { Spacing, Typography, BorderRadius } from '../../constants/theme';
 import type { UserProfile } from '../../types';
 
 export function ProfileScreen() {
   const router = useRouter();
   const { session, logout } = useAuthStore();
+  const { colors, isDark, toggleTheme } = useTheme();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [avatarUri, setAvatarUri] = useState<string | null>(null);
 
@@ -102,6 +104,13 @@ export function ProfileScreen() {
 
         {/* Settings */}
         <Card style={styles.settingsCard} padding="none">
+          <TouchableOpacity style={rowStyles.row} onPress={toggleTheme} accessibilityRole="button">
+            <Ionicons name={isDark ? 'sunny-outline' : 'moon-outline'} size={20} color={colors.surface[500]} />
+            <Text style={rowStyles.label}>Dark Mode</Text>
+            <View style={rowStyles.right}>
+              <Ionicons name={isDark ? 'checkmark-circle' : 'ellipse-outline'} size={20} color={isDark ? colors.primary : colors.surface[400]} />
+            </View>
+          </TouchableOpacity>
           <SettingsRow icon="notifications-outline" label="Notifications" onPress={() => {}} />
           <SettingsRow icon="shield-outline" label="Security & Biometrics" onPress={() => router.push('/biometric-settings')} />
           <SettingsRow icon="globe-outline" label="Network" value={session?.network} onPress={() => {}} />
@@ -123,8 +132,8 @@ export function ProfileScreen() {
 function StatBox({ label, value }: { label: string; value: number | string }) {
   return (
     <View style={statStyles.box}>
-      <Text style={statStyles.value}>{value}</Text>
-      <Text style={statStyles.label}>{label}</Text>
+      <Text style={[statStyles.value, { color: colors.primary }]}>{value}</Text>
+      <Text style={[statStyles.label, { color: colors.surface[500] }]}>{label}</Text>
     </View>
   );
 }
@@ -141,12 +150,12 @@ function SettingsRow({
   onPress: () => void;
 }) {
   return (
-    <TouchableOpacity style={rowStyles.row} onPress={onPress} accessibilityRole="button">
-      <Ionicons name={icon as any} size={20} color={Colors.surface[500]} />
-      <Text style={rowStyles.label}>{label}</Text>
+    <TouchableOpacity style={[rowStyles.row, { borderBottomColor: colors.surface[200] }]} onPress={onPress} accessibilityRole="button">
+      <Ionicons name={icon as any} size={20} color={colors.surface[500]} />
+      <Text style={[rowStyles.label, { color: colors.surface[800] }]}>{label}</Text>
       <View style={rowStyles.right}>
-        {value && <Text style={rowStyles.value}>{value}</Text>}
-        <Ionicons name="chevron-forward" size={16} color={Colors.surface[400]} />
+        {value && <Text style={[rowStyles.value, { color: colors.surface[400] }]}>{value}</Text>}
+        <Ionicons name="chevron-forward" size={16} color={colors.surface[400]} />
       </View>
     </TouchableOpacity>
   );
@@ -154,8 +163,8 @@ function SettingsRow({
 
 const statStyles = StyleSheet.create({
   box: { flex: 1, alignItems: 'center', gap: 2 },
-  value: { ...Typography.h3, color: Colors.primary },
-  label: { ...Typography.caption, color: Colors.surface[500], textAlign: 'center' },
+  value: { ...Typography.h3 },
+  label: { ...Typography.caption, textAlign: 'center' },
 });
 
 const rowStyles = StyleSheet.create({
@@ -165,16 +174,15 @@ const rowStyles = StyleSheet.create({
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.md,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.surface[100],
     gap: Spacing.md,
   },
-  label: { ...Typography.body, color: Colors.surface[800], flex: 1 },
+  label: { ...Typography.body, flex: 1 },
   right: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs },
-  value: { ...Typography.bodySmall, color: Colors.surface[400] },
+  value: { ...Typography.bodySmall },
 });
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: Colors.surface[50] },
+  safe: { flex: 1, backgroundColor: colors.surface[50] },
   scroll: { padding: Spacing.lg, gap: Spacing.lg },
   avatarSection: { alignItems: 'center', gap: Spacing.sm },
   avatar: { width: 80, height: 80, borderRadius: 40 },
@@ -182,31 +190,31 @@ const styles = StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: Colors.primary,
+    backgroundColor: colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  avatarInitial: { ...Typography.h1, color: Colors.white },
+  avatarInitial: { ...Typography.h1, color: colors.white },
   cameraIcon: {
     position: 'absolute',
     bottom: 0,
     right: 0,
-    backgroundColor: Colors.surface[600],
+    backgroundColor: colors.surface[600],
     borderRadius: 12,
     padding: 4,
   },
-  displayName: { ...Typography.h3, color: Colors.surface[900] },
-  address: { ...Typography.bodySmall, color: Colors.surface[500], fontFamily: 'monospace' },
+  displayName: { ...Typography.h3, color: colors.surface[900] },
+  address: { ...Typography.bodySmall, color: colors.surface[500], fontFamily: 'monospace' },
   network: {
     ...Typography.caption,
-    color: Colors.primary,
-    backgroundColor: '#ede9fe',
+    color: colors.primary,
+    backgroundColor: isDark ? colors.primaryLight : '#ede9fe',
     paddingHorizontal: Spacing.sm,
     paddingVertical: 2,
     borderRadius: BorderRadius.full,
   },
   statsCard: { gap: Spacing.md },
-  sectionTitle: { ...Typography.h3, color: Colors.surface[800] },
+  sectionTitle: { ...Typography.h3, color: colors.surface[800] },
   statsGrid: { flexDirection: 'row', gap: Spacing.sm },
   settingsCard: { overflow: 'hidden' },
   logoutBtn: { width: '100%' },

@@ -2,6 +2,8 @@
 
 import { FormEvent, useMemo, useState } from 'react';
 import { Button } from '@/components/Button';
+import EmailTemplateEditor from '@/components/invitations/EmailTemplateEditor';
+import type { EmailTemplate } from '@/components/invitations/emailTemplates';
 import type { InvitationDraft } from '@/hooks/useInvitations';
 
 interface InviteFormProps {
@@ -48,6 +50,7 @@ export default function InviteForm({
 }: InviteFormProps) {
   const [form, setForm] = useState<FormState>(initialState);
   const [error, setError] = useState<string | null>(null);
+  const [emailTemplate, setEmailTemplate] = useState<EmailTemplate | null>(null);
 
   const previewGroupId = useMemo(() => {
     return form.groupId || normalizeGroupId(form.groupName);
@@ -79,12 +82,13 @@ export default function InviteForm({
       recipientAddress: form.recipientAddress.trim(),
       invitedBy: inviterName,
       invitedByAddress: inviterAddress || undefined,
-      message: form.message.trim() || undefined,
+      message: emailTemplate?.body || form.message.trim() || undefined,
       channel: form.channel,
       expiresInDays: 7,
     });
 
     setForm(initialState);
+    setEmailTemplate(null);
   };
 
   return (
@@ -249,6 +253,30 @@ export default function InviteForm({
           />
         </label>
       </div>
+
+      {form.channel === 'email' && (
+        <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-900/60">
+          <p className="mb-3 text-sm font-semibold text-slate-700 dark:text-slate-200">Email template</p>
+          <EmailTemplateEditor
+            vars={{
+              groupName: form.groupName || 'Your Group',
+              groupDescription: form.groupDescription || '',
+              contributionAmount: form.contributionAmount || '',
+              membersCount: form.membersCount || '',
+              recipientName: form.recipientName || 'Member',
+              message: form.message || '',
+              inviterName: inviterName,
+              inviteLink: `${typeof window !== 'undefined' ? window.location.origin : ''}/invite/preview`,
+            }}
+            onSelect={(template) => setEmailTemplate(template)}
+          />
+          {emailTemplate && (
+            <p className="mt-2 text-xs text-emerald-600 dark:text-emerald-400">
+              ✓ Template &quot;{emailTemplate.name}&quot; selected — message will use this template body.
+            </p>
+          )}
+        </div>
+      )}
 
       {error && (
         <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/80 dark:bg-red-950/40 dark:text-red-300">

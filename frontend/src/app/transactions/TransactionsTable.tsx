@@ -1,10 +1,15 @@
 'use client';
 
-import React from 'react';
+import React, { useRef, useState, useCallback } from 'react';
 import { ArrowUp, ArrowDown, ArrowUpDown, ExternalLink } from 'lucide-react';
 import { NoTransactions } from '@/components/empty/NoTransactions';
 import type { TxRow } from '@/hooks/useTransactionHistory';
 import type { TxSort } from '@/hooks/useTransactionHistory';
+
+/** Threshold above which virtual scrolling is activated */
+const VIRTUAL_SCROLL_THRESHOLD = 100;
+const ROW_HEIGHT = 53; // px — must match the rendered row height
+const VIRTUAL_CONTAINER_HEIGHT = 480; // px
 
 interface Props {
   rows: TxRow[];
@@ -12,6 +17,9 @@ interface Props {
   onSort: (field: TxSort['field']) => void;
   onRowClick: (tx: TxRow) => void;
   isLoading?: boolean;
+  /** Called when the user scrolls near the bottom (for infinite scroll) */
+  onLoadMore?: () => void;
+  hasMore?: boolean;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -82,104 +90,140 @@ function SkeletonRows() {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export function TransactionsTable({ rows, sort, onSort, onRowClick, isLoading }: Props) {
+export function TransactionsTable({ rows, sort, onSort, onRowClick, isLoading, onLoadMore, hasMore }: Props) {
+  const useVirtual = rows.length > VIRTUAL_SCROLL_THRESHOLD;
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Infinite scroll handler for virtual mode
+  const handleScroll = useCallback(() => {
+    if (!onLoadMore || !hasMore || !scrollRef.current) return;
+    const { scrollTop, scrollHeight, clientHeight } = scrollRef.current;
+    if (scrollHeight - scrollTop - clientHeight < 200) {
+      onLoadMore();
+    }
+  }, [onLoadMore, hasMore]);
+
+  const tableHead = (
+    <thead className="bg-gray-50 dark:bg-slate-700/50 border-b border-gray-100 dark:border-slate-700 sticky top-0 z-10">
+      <tr>
+        <th className={sortableCls} onClick={() => onSort('date')}>
+          <span className="flex items-center gap-1">Date <SortIcon field="date" sort={sort} /></span>
+        </th>
+        <th className={sortableCls} onClick={() => onSort('type')}>
+          <span className="flex items-center gap-1">Type <SortIcon field="type" sort={sort} /></span>
+        </th>
+        <th className={sortableCls} onClick={() => onSort('amount')}>
+          <span className="flex items-center gap-1">Amount <SortIcon field="amount" sort={sort} /></span>
+        </th>
+        <th className={sortableCls} onClick={() => onSort('groupName')}>
+          <span className="flex items-center gap-1">Group <SortIcon field="groupName" sort={sort} /></span>
+        </th>
+        <th className={sortableCls} onClick={() => onSort('member')}>
+          <span className="flex items-center gap-1">Member <SortIcon field="member" sort={sort} /></span>
+        </th>
+        <th className={sortableCls} onClick={() => onSort('status')}>
+          <span className="flex items-center gap-1">Status <SortIcon field="status" sort={sort} /></span>
+        </th>
+        <th className={thCls}>Explorer</th>
+      </tr>
+    </thead>
+  );
+
+  const renderRow = (tx: TxRow) => (
+    <tr
+      key={tx.id}
+      onClick={() => onRowClick(tx)}
+      className="hover:bg-gray-50 dark:hover:bg-slate-700/30 cursor-pointer transition-colors border-b border-gray-50 dark:border-slate-700/50"
+      style={{ height: ROW_HEIGHT }}
+    >
+      <td className="px-4 py-3 text-gray-600 dark:text-slate-400 whitespace-nowrap">
+        {new Date(tx.timestamp || tx.date || '').toLocaleString(undefined, {
+          dateStyle: 'medium',
+          timeStyle: 'short',
+        })}
+      </td>
+      <td className="px-4 py-3"><TypeBadge type={tx.type} /></td>
+      <td className="px-4 py-3"><AmountCell amount={tx.amount} type={tx.type} /></td>
+      <td className="px-4 py-3 text-gray-700 dark:text-slate-300 max-w-[140px] truncate">
+        {tx.groupName ?? tx.groupId}
+      </td>
+      <td className="px-4 py-3 font-mono text-xs text-gray-500 dark:text-slate-400 max-w-[140px] truncate">
+        {tx.member}
+      </td>
+      <td className="px-4 py-3"><StatusBadge status={tx.status} /></td>
+      <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+        {tx.hash ? (
+          <a
+            href={`https://stellar.expert/explorer/testnet/tx/${tx.hash}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 text-xs text-indigo-600 dark:text-indigo-400 hover:underline"
+            aria-label="View on Stellar Expert"
+          >
+            <ExternalLink className="w-3.5 h-3.5" />
+          </a>
+        ) : (
+          <span className="text-gray-300 dark:text-slate-600">—</span>
+        )}
+      </td>
+    </tr>
+  );
+
   return (
     <div className="bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 shadow-sm overflow-hidden">
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead className="bg-gray-50 dark:bg-slate-700/50 border-b border-gray-100 dark:border-slate-700">
-            <tr>
-              <th
-                className={sortableCls}
-                onClick={() => onSort('date')}
-              >
-                <span className="flex items-center gap-1">Date <SortIcon field="date" sort={sort} /></span>
-              </th>
-              <th
-                className={sortableCls}
-                onClick={() => onSort('type')}
-              >
-                <span className="flex items-center gap-1">Type <SortIcon field="type" sort={sort} /></span>
-              </th>
-              <th
-                className={sortableCls}
-                onClick={() => onSort('amount')}
-              >
-                <span className="flex items-center gap-1">Amount <SortIcon field="amount" sort={sort} /></span>
-              </th>
-              <th
-                className={sortableCls}
-                onClick={() => onSort('groupName')}
-              >
-                <span className="flex items-center gap-1">Group <SortIcon field="groupName" sort={sort} /></span>
-              </th>
-              <th
-                className={sortableCls}
-                onClick={() => onSort('member')}
-              >
-                <span className="flex items-center gap-1">Member <SortIcon field="member" sort={sort} /></span>
-              </th>
-              <th
-                className={sortableCls}
-                onClick={() => onSort('status')}
-              >
-                <span className="flex items-center gap-1">Status <SortIcon field="status" sort={sort} /></span>
-              </th>
-              <th className={thCls}>Explorer</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-50 dark:divide-slate-700/50">
-            {isLoading ? (
-              <SkeletonRows />
-            ) : rows.length === 0 ? (
-              <tr>
-                <td colSpan={7} className="px-4 py-16 text-center text-gray-400 dark:text-slate-500">
-                  <NoTransactions />
-                </td>
-              </tr>
-            ) : (
-              rows.map((tx) => (
-                <tr
-                  key={tx.id}
-                  onClick={() => onRowClick(tx)}
-                  className="hover:bg-gray-50 dark:hover:bg-slate-700/30 cursor-pointer transition-colors"
-                >
-                  <td className="px-4 py-3 text-gray-600 dark:text-slate-400 whitespace-nowrap">
-                    {new Date(tx.timestamp || tx.date || '').toLocaleString(undefined, {
-                      dateStyle: 'medium',
-                      timeStyle: 'short',
-                    })}
-                  </td>
-                  <td className="px-4 py-3"><TypeBadge type={tx.type} /></td>
-                  <td className="px-4 py-3"><AmountCell amount={tx.amount} type={tx.type} /></td>
-                  <td className="px-4 py-3 text-gray-700 dark:text-slate-300 max-w-[140px] truncate">
-                    {tx.groupName ?? tx.groupId}
-                  </td>
-                  <td className="px-4 py-3 font-mono text-xs text-gray-500 dark:text-slate-400 max-w-[140px] truncate">
-                    {tx.member}
-                  </td>
-                  <td className="px-4 py-3"><StatusBadge status={tx.status} /></td>
-                  <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
-                    {tx.hash ? (
-                      <a
-                        href={`https://stellar.expert/explorer/testnet/tx/${tx.hash}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 text-xs text-indigo-600 dark:text-indigo-400 hover:underline"
-                        aria-label="View on Stellar Expert"
-                      >
-                        <ExternalLink className="w-3.5 h-3.5" />
-                      </a>
-                    ) : (
-                      <span className="text-gray-300 dark:text-slate-600">—</span>
-                    )}
+      {useVirtual ? (
+        /* ── Virtual scroll mode for large datasets ── */
+        <div
+          ref={scrollRef}
+          className="overflow-auto"
+          style={{ maxHeight: VIRTUAL_CONTAINER_HEIGHT }}
+          onScroll={handleScroll}
+        >
+          <table className="w-full text-sm">
+            {tableHead}
+            <tbody className="divide-y divide-gray-50 dark:divide-slate-700/50">
+              {isLoading ? (
+                <SkeletonRows />
+              ) : rows.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="px-4 py-16 text-center">
+                    <NoTransactions />
                   </td>
                 </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+              ) : (
+                rows.map((tx) => renderRow(tx))
+              )}
+              {hasMore && (
+                <tr>
+                  <td colSpan={7} className="px-4 py-3 text-center text-sm text-gray-400 dark:text-slate-500">
+                    {isLoading ? 'Loading more…' : 'Scroll for more'}
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        /* ── Standard paginated mode ── */
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            {tableHead}
+            <tbody className="divide-y divide-gray-50 dark:divide-slate-700/50">
+              {isLoading ? (
+                <SkeletonRows />
+              ) : rows.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="px-4 py-16 text-center text-gray-400 dark:text-slate-500">
+                    <NoTransactions />
+                  </td>
+                </tr>
+              ) : (
+                rows.map((tx) => renderRow(tx))
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }

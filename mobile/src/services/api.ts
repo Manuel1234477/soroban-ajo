@@ -90,8 +90,13 @@ export async function joinGroup(groupId: string, publicKey: string): Promise<voi
   await client.post(`/groups/${groupId}/join`, { publicKey });
 }
 
-export async function contribute(groupId: string, amount: number, signedXdr: string): Promise<void> {
-  await client.post(`/groups/${groupId}/contribute`, { amount, signedXdr });
+export async function contribute(
+  groupId: string,
+  amount: number,
+  signedXdr: string,
+  tokenId: string = 'native'
+): Promise<void> {
+  await client.post(`/groups/${groupId}/contribute`, { amount, signedXdr, tokenId });
 }
 
 // Members
