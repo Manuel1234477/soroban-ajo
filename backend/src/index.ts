@@ -26,9 +26,11 @@ import { startScheduler, stopScheduler } from './cron/scheduler'
 import { chatService } from './services/chatService'
 import { websocketService } from './services/websocketService'
 import { adminRouter } from './routes/admin'
+import { versionsRouter } from './routes/versions'
 import { ipBlocklist, ddosProtection } from './middleware/ddosProtection'
 import { requestThrottle } from './middleware/requestThrottle'
 import { publicReadLimiter, analyticsLimiter } from './middleware/rateLimiter'
+import { apiVersionMiddleware } from './middleware/apiVersion'
 
 dotenv.config()
 
@@ -55,11 +57,15 @@ app.use(express.urlencoded({ extended: true }))
 // Global API rate limit
 app.use('/api', apiLimiter)
 
+// API Versioning middleware - applies to all /api routes
+app.use('/api', apiVersionMiddleware)
+
 // API Documentation
 setupSwagger(app)
 
 // Routes
 app.use('/health', healthRouter)
+app.use('/api/versions', versionsRouter)
 app.use('/api/auth', strictLimiter, authRouter)
 app.use('/api/groups', publicReadLimiter, groupsRouter)
 app.use('/api/webhooks', strictLimiter, webhooksRouter)
