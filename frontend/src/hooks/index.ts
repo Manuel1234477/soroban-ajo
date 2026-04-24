@@ -19,6 +19,8 @@ export { useToast } from './useToast'
 export type { ToastOptions, ToastAction } from './useToast'
 export { useMemberSearch } from './useMemberSearch'
 export type { MemberSearchResult, MemberSearchFilters } from './useMemberSearch'
+export { useContextualHelp, registerHelpTopic } from './useContextualHelp'
+export type { HelpSearchResult } from './useContextualHelp'
 
 // Penalty hooks
 export {
