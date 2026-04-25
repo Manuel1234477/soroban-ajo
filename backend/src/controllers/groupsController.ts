@@ -3,7 +3,6 @@ import { SorobanService } from '../services/sorobanService'
 import { NotFoundError } from '../errors/AppError'
 import { asyncHandler } from '../middleware/errorHandler'
 import { gamificationService } from '../services/gamification/GamificationService'
-import { notificationService } from '../services/notificationService'
 import { logger } from '../utils/logger'
 
 /**
@@ -25,10 +24,10 @@ function parsePagination(query: Request['query']): { page: number; limit: number
 }
 
 export class GroupsController {
-  private sorobanService: SorobanService
+  private sorobanService: SorobanService;
 
   constructor(sorobanService?: SorobanService) {
-    this.sorobanService = sorobanService || new SorobanService()
+    this.sorobanService = sorobanService || new SorobanService();
   }
 
   /**
@@ -87,25 +86,6 @@ export class GroupsController {
     const { id } = req.params
     const { publicKey, signedXdr } = req.body // Already validated by middleware
     const result = await this.sorobanService.joinGroup(id, publicKey, signedXdr)
-
-    // Notify existing group members when someone joins (Phase 2 only)
-    if (result.txHash && publicKey) {
-      try {
-        await notificationService.sendToGroup(
-          id,
-          {
-            type: 'member_joined',
-            title: 'New member joined',
-            message: `A new member has joined your savings group.`,
-            actionUrl: `/groups/${id}`,
-          },
-          publicKey // exclude the joiner themselves
-        )
-      } catch (err) {
-        logger.error('Failed to send member_joined notification', { err })
-      }
-    }
-
     res.json({ success: true, data: result })
   })
 
@@ -119,29 +99,18 @@ export class GroupsController {
     const { id } = req.params
     const { amount, publicKey, signedXdr } = req.body // Already validated by middleware
     const result = await this.sorobanService.contribute(id, publicKey, amount, signedXdr)
-
+    
     // Award gamification points for contribution (only on successful submission)
     if (result.txHash && publicKey) {
       try {
+        // Use transaction hash as unique identifier for idempotency
         await gamificationService.handleContribution(publicKey, result.txHash)
       } catch (error) {
+        // Log but don't fail the request if gamification fails
         logger.error('Failed to update gamification', { error, publicKey, txHash: result.txHash })
       }
-
-      // Notify the contributor
-      try {
-        notificationService.sendToUser(publicKey, {
-          type: 'contribution_received',
-          title: 'Contribution confirmed',
-          message: `Your contribution to the group has been recorded on-chain.`,
-          groupId: id,
-          actionUrl: `/groups/${id}`,
-        })
-      } catch (err) {
-        logger.error('Failed to send contribution_received notification', { err })
-      }
     }
-
+    
     res.json({ success: true, data: result })
   })
 

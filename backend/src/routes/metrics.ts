@@ -1,5 +1,6 @@
 import { Router } from 'express'
 import { getSystemMetrics, getRequestMetrics, getRouteMetrics, getRecommendations } from '../middleware/performance'
+import { getDdosStats } from '../middleware/ddosProtection'
 
 export const metricsRouter = Router()
 
@@ -15,6 +16,7 @@ metricsRouter.get('/', (_req, res) => {
       requests: getRequestMetrics(),
       routes: getRouteMetrics(),
       recommendations: getRecommendations(),
+      security: getDdosStats(),
       timestamp: new Date().toISOString(),
     },
   })

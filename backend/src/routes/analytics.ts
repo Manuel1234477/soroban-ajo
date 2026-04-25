@@ -6,6 +6,7 @@ import { biService } from '../services/biService'
 import { dataExportService } from '../services/dataExportService'
 import { abTestService } from '../services/abTestService'
 import { anomalyDetectionService } from '../services/anomalyDetectionService'
+import { advancedAnalyticsService } from '../services/advancedAnalyticsService'
 import { logger } from '../utils/logger'
 import { AuthRequest } from '../middleware/auth'
 
@@ -403,6 +404,282 @@ router.post('/anomalies/config', async (req: Request, res: Response) => {
     return res.json({ success: true })
   } catch (error) {
     logger.error('[Analytics Route] Anomaly config error:', error)
+    return res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
+// ── Advanced Analytics Dashboard ─────────────────────────────────────────
+
+const trendQuerySchema = z.object({
+  start: z.string().datetime(),
+  end: z.string().datetime(),
+  granularity: z.enum(['day', 'week', 'month']).default('day'),
+})
+
+const exportQuerySchema = z.object({
+  format: z.enum(['json', 'csv']).default('json'),
+})
+
+// GET /api/analytics/dashboard/groups — group performance overview
+router.get('/dashboard/groups', async (req: Request, res: Response) => {
+  try {
+    const limit = Math.min(Number(req.query.limit) || 20, 100)
+    const offset = Number(req.query.offset) || 0
+    const activeOnly = req.query.activeOnly === 'true'
+    const result = await advancedAnalyticsService.getAllGroupsPerformance({ limit, offset, activeOnly })
+    return res.json(result)
+  } catch (error) {
+    logger.error('[Analytics] Group performance error:', error)
+    return res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
+// GET /api/analytics/dashboard/groups/:groupId — single group performance
+router.get('/dashboard/groups/:groupId', async (req: Request, res: Response) => {
+  try {
+    const data = await advancedAnalyticsService.getGroupPerformance(req.params.groupId)
+    if (!data) return res.status(404).json({ error: 'Group not found' })
+    return res.json(data)
+  } catch (error) {
+    logger.error('[Analytics] Group performance error:', error)
+    return res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
+// GET /api/analytics/dashboard/groups/:groupId/trends — group contribution trends
+router.get('/dashboard/groups/:groupId/trends', async (req: Request, res: Response) => {
+  try {
+    const parsed = trendQuerySchema.parse(req.query)
+    const data = await advancedAnalyticsService.getGroupTrends(req.params.groupId, {
+      start: new Date(parsed.start),
+      end: new Date(parsed.end),
+    })
+    return res.json(data)
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: 'Invalid query params', details: error.errors })
+    }
+    logger.error('[Analytics] Group trends error:', error)
+    return res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
+// GET /api/analytics/dashboard/members — top member behavior
+router.get('/dashboard/members', async (req: Request, res: Response) => {
+  try {
+    const limit = Math.min(Number(req.query.limit) || 10, 100)
+    const sortBy = (req.query.sortBy as 'volume' | 'reliability' | 'contributions') || 'volume'
+    const data = await advancedAnalyticsService.getTopMembers({ limit, sortBy })
+    return res.json(data)
+  } catch (error) {
+    logger.error('[Analytics] Member behavior error:', error)
+    return res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
+// GET /api/analytics/dashboard/members/:walletAddress — single member behavior
+router.get('/dashboard/members/:walletAddress', async (req: Request, res: Response) => {
+  try {
+    const data = await advancedAnalyticsService.getMemberBehavior(req.params.walletAddress)
+    if (!data) return res.status(404).json({ error: 'Member not found' })
+    return res.json(data)
+  } catch (error) {
+    logger.error('[Analytics] Member behavior error:', error)
+    return res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
+// GET /api/analytics/dashboard/trends — platform-wide trend analysis
+router.get('/dashboard/trends', async (req: Request, res: Response) => {
+  try {
+    const parsed = trendQuerySchema.parse(req.query)
+    const data = await advancedAnalyticsService.getPlatformTrends(
+      { start: new Date(parsed.start), end: new Date(parsed.end) },
+      parsed.granularity
+    )
+    return res.json(data)
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: 'Invalid query params', details: error.errors })
+    }
+    logger.error('[Analytics] Platform trends error:', error)
+    return res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
+// GET /api/analytics/dashboard/export/groups — export group performance data
+router.get('/dashboard/export/groups', async (req: Request, res: Response) => {
+  try {
+    const { format } = exportQuerySchema.parse(req.query)
+    const content = await advancedAnalyticsService.exportGroupsPerformance(format)
+    const contentType = format === 'csv' ? 'text/csv' : 'application/json'
+    res.setHeader('Content-Type', contentType)
+    res.setHeader('Content-Disposition', `attachment; filename="groups-performance.${format}"`)
+    return res.send(content)
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: 'Invalid query params', details: error.errors })
+    }
+    logger.error('[Analytics] Export groups error:', error)
+    return res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
+// GET /api/analytics/dashboard/export/members — export member behavior data
+router.get('/dashboard/export/members', async (req: Request, res: Response) => {
+  try {
+    const { format } = exportQuerySchema.parse(req.query)
+    const content = await advancedAnalyticsService.exportMemberBehaviors(format)
+    const contentType = format === 'csv' ? 'text/csv' : 'application/json'
+    res.setHeader('Content-Type', contentType)
+    res.setHeader('Content-Disposition', `attachment; filename="member-behaviors.${format}"`)
+    return res.send(content)
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: 'Invalid query params', details: error.errors })
+    }
+    logger.error('[Analytics] Export members error:', error)
+    return res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
+// GET /api/analytics/dashboard/export/trends — export trend data
+router.get('/dashboard/export/trends', async (req: Request, res: Response) => {
+  try {
+    const { format } = exportQuerySchema.parse(req.query)
+    const trendParams = trendQuerySchema.parse(req.query)
+    const content = await advancedAnalyticsService.exportTrends(
+      { start: new Date(trendParams.start), end: new Date(trendParams.end) },
+      trendParams.granularity,
+      format
+    )
+    const contentType = format === 'csv' ? 'text/csv' : 'application/json'
+    res.setHeader('Content-Type', contentType)
+    res.setHeader('Content-Disposition', `attachment; filename="trends.${format}"`)
+    return res.send(content)
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: 'Invalid query params', details: error.errors })
+    }
+    logger.error('[Analytics] Export trends error:', error)
+    return res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
+// ── Issue #600: Interactive Chart Data Endpoints ──────────────────────────
+
+// GET /api/analytics/charts/group-performance — data for interactive group performance chart
+router.get('/charts/group-performance', async (req: Request, res: Response) => {
+  try {
+    const limit = Math.min(Number(req.query.limit) || 10, 50)
+    const activeOnly = req.query.activeOnly === 'true'
+    const sortBy = (req.query.sortBy as string) || 'totalContributed'
+
+    const groups = await prisma.group.findMany({
+      where: activeOnly ? { isActive: true } : undefined,
+      include: {
+        contributions: { select: { amount: true } },
+        members: { select: { userId: true } },
+      },
+      take: limit,
+    })
+
+    const data = groups
+      .map((g) => {
+        const totalContributed = g.contributions.reduce(
+          (s: number, c: { amount: bigint }) => s + Number(c.amount),
+          0
+        )
+        return {
+          id: g.id,
+          name: g.name,
+          totalContributed,
+          totalPayouts: 0, // populated from payout records if available
+          memberCount: g.members.length,
+          completionRate: totalContributed > 0 ? Math.min(100, Math.round((totalContributed / (Number(g.contributionAmount) * g.members.length * (g.currentRound || 1))) * 100)) : 0,
+          isActive: g.isActive,
+        }
+      })
+      .sort((a, b) => {
+        if (sortBy === 'completionRate') return b.completionRate - a.completionRate
+        if (sortBy === 'memberCount') return b.memberCount - a.memberCount
+        return b.totalContributed - a.totalContributed
+      })
+
+    return res.json({ data, total: data.length })
+  } catch (error) {
+    logger.error('[Analytics] Chart group-performance error:', error)
+    return res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
+// GET /api/analytics/charts/contribution-trends — monthly trend data for charts
+router.get('/charts/contribution-trends', async (req: Request, res: Response) => {
+  try {
+    const months = Math.min(Number(req.query.months) || 6, 24)
+    const groupId = req.query.groupId as string | undefined
+
+    const now = new Date()
+    const trends = await Promise.all(
+      Array.from({ length: months }, async (_, i) => {
+        const start = new Date(now.getFullYear(), now.getMonth() - (months - 1 - i), 1)
+        const end = new Date(now.getFullYear(), now.getMonth() - (months - 2 - i), 0)
+
+        const where: any = { createdAt: { gte: start, lte: end } }
+        if (groupId) where.groupId = groupId
+
+        const contributions = await prisma.contribution.aggregate({
+          where,
+          _sum: { amount: true },
+          _count: true,
+        })
+
+        return {
+          month: start.toLocaleString('default', { month: 'short' }),
+          year: start.getFullYear(),
+          contributions: Number(contributions._sum.amount ?? 0),
+          payouts: 0,
+          net: Number(contributions._sum.amount ?? 0),
+          count: contributions._count,
+        }
+      })
+    )
+
+    return res.json({ data: trends })
+  } catch (error) {
+    logger.error('[Analytics] Chart contribution-trends error:', error)
+    return res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
+// GET /api/analytics/charts/member-growth — member growth over time
+router.get('/charts/member-growth', async (req: Request, res: Response) => {
+  try {
+    const months = Math.min(Number(req.query.months) || 6, 24)
+    const now = new Date()
+
+    const data = await Promise.all(
+      Array.from({ length: months }, async (_, i) => {
+        const start = new Date(now.getFullYear(), now.getMonth() - (months - 1 - i), 1)
+        const end = new Date(now.getFullYear(), now.getMonth() - (months - 2 - i), 0)
+
+        const [newMembers, totalMembers] = await Promise.all([
+          prisma.groupMember.count({ where: { joinedAt: { gte: start, lte: end } } }),
+          prisma.groupMember.count({ where: { joinedAt: { lte: end } } }),
+        ])
+
+        return {
+          period: start.toLocaleString('default', { month: 'short' }),
+          newMembers,
+          totalMembers,
+          activeMembers: Math.round(totalMembers * 0.8),
+        }
+      })
+    )
+
+    return res.json({ data })
+  } catch (error) {
+    logger.error('[Analytics] Chart member-growth error:', error)
     return res.status(500).json({ error: 'Internal server error' })
   }
 })

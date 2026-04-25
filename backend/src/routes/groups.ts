@@ -3,6 +3,7 @@ import { GroupsController } from '../controllers/groupsController'
 import { webhookMiddleware } from '../middleware/webhook'
 import { authMiddleware } from '../middleware/auth'
 import { validateRequest } from '../middleware/validateRequest'
+import { groupsWriteLimiter } from '../middleware/rateLimiter'
 import {
   createGroupSchema,
   joinGroupSchema,
@@ -10,6 +11,12 @@ import {
   groupIdParamSchema,
   paginationQuerySchema,
 } from '../validators/groups'
+import { scheduleRouter } from './schedule'
+import {
+  getGroupActivityFeed,
+  getGroupActivitySummary,
+} from '../controllers/activity.controller'
+import { requireGroupMember } from '../middleware/groups'
 
 const router = Router()
 const controller = new GroupsController()
@@ -106,6 +113,7 @@ router.get(
 router.post(
   '/',
   authMiddleware,
+  groupsWriteLimiter,
   validateRequest({ body: createGroupSchema }),
   controller.createGroup.bind(controller),
   webhookMiddleware.afterGroupCreated
@@ -137,6 +145,7 @@ router.post(
 router.post(
   '/:id/join',
   authMiddleware,
+  groupsWriteLimiter,
   validateRequest({ params: groupIdParamSchema, body: joinGroupSchema }),
   controller.joinGroup.bind(controller),
   webhookMiddleware.afterMemberJoined
@@ -166,6 +175,7 @@ router.post(
 router.post(
   '/:id/contribute',
   authMiddleware,
+  groupsWriteLimiter,
   validateRequest({ params: groupIdParamSchema, body: contributeSchema }),
   controller.contribute.bind(controller),
   webhookMiddleware.afterContribution
@@ -230,6 +240,25 @@ router.get(
   '/:id/transactions',
   validateRequest({ params: groupIdParamSchema, query: paginationQuerySchema }),
   controller.getTransactions.bind(controller)
+)
+
+// Contribution schedule sub-router
+router.use('/:id/schedule', scheduleRouter)
+
+// Group activity feed
+router.get(
+  '/:id/activity',
+  validateRequest({ params: groupIdParamSchema }),
+  requireGroupMember,
+  getGroupActivityFeed
+)
+
+// Group activity summary
+router.get(
+  '/:id/activity/summary',
+  validateRequest({ params: groupIdParamSchema }),
+  requireGroupMember,
+  getGroupActivitySummary
 )
 
 export const groupsRouter = router

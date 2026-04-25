@@ -7,6 +7,7 @@ export interface Group {
   creator: string;
   cycleLength: number;
   contributionAmount: number;
+  contributionTokenId: string;
   maxMembers: number;
   currentMembers: number;
   totalContributions: number;
@@ -33,6 +34,8 @@ export interface Transaction {
   groupId: string;
   member: string;
   amount: number;
+  tokenId: string;
+  amountUsd: number;
   type: 'contribution' | 'payout' | 'refund';
   timestamp: string;
   status: 'pending' | 'confirmed' | 'failed' | 'completed';

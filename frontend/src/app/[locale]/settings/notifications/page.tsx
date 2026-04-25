@@ -3,6 +3,8 @@
 import React from 'react';
 import { useNotificationGenerator } from '@/hooks/useNotificationGenerator';
 import NotificationPreferences from '@/components/NotificationPreferences';
+import { ReminderSettings } from '@/components/reminders/ReminderSettings';
+import { ReminderPreview } from '@/components/reminders/ReminderPreview';
 import { Bell } from 'lucide-react';
 
 export default function NotificationSettingsPage() {
@@ -63,6 +65,12 @@ export default function NotificationSettingsPage() {
         </div>
 
         <NotificationPreferences />
+
+        {/* Reminder Settings */}
+        <div className="mt-8 grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <ReminderSettings />
+          <ReminderPreview />
+        </div>
 
         {/* Test Notifications Section */}
         <div className="mt-8 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">

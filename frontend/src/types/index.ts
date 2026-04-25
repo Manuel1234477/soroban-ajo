@@ -16,6 +16,8 @@ export interface Group {
   frequency?: 'weekly' | 'monthly'
   duration?: number
   invitedMembers?: string[]
+  category?: string
+  isBookmarked?: boolean
 }
 
 export interface Member {
@@ -100,6 +102,35 @@ export interface SorobanTransactionResponse {
 export interface ContractInvocationResult {
   returnValue: unknown
   simulatedFootprint: unknown
+}
+
+export interface MemberPenaltyRecord {
+  member: string
+  groupId: string
+  lateCount: number
+  onTimeCount: number
+  totalPenalties: number
+  reliabilityScore: number
+}
+
+export interface PenaltyStats {
+  totalPenalties: number
+  averageReliabilityScore: number
+  totalLateContributions: number
+  totalOnTimeContributions: number
+  membersWithPenalties: number
+  totalMembers: number
+}
+
+export interface PenaltyHistoryItem {
+  id: string
+  groupId: string
+  member: string
+  cycle: number
+  penaltyAmount: number
+  isLate: boolean
+  timestamp: string
+  reason?: string
 }
 
 // Re-export profile types

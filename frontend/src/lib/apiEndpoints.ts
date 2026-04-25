@@ -48,6 +48,19 @@ export const apiPaths = {
     funnel: '/api/analytics/funnel',
     export: '/api/analytics/export',
   },
+  notifications: {
+    list: '/api/notifications',
+    status: '/api/notifications/status',
+    test: '/api/notifications/test',
+    reminders: {
+      preferences: '/api/notifications/reminders/preferences',
+    },
+    push: {
+      vapidKey: '/api/notifications/push/vapid-public-key',
+      subscribe: '/api/notifications/push/subscribe',
+      unsubscribe: '/api/notifications/push/unsubscribe',
+    },
+  },
   admin: {
     dashboard: '/api/admin/dashboard',
     config: '/api/admin/config',
