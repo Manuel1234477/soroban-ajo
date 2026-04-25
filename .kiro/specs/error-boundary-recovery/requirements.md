@@ -33,6 +33,7 @@ This feature enhances the Soroban Ajo platform's error handling by replacing the
 5. WHEN an error message or name matches a permission-related pattern (e.g., "unauthorized", "forbidden", "403", "401"), THE `Error_Classifier` SHALL assign the `ErrorType` `permission`.
 6. WHEN an error message or name matches a timeout-related pattern (e.g., "timeout", "timed out", "ETIMEDOUT"), THE `Error_Classifier` SHALL assign the `ErrorType` `timeout`.
 7. WHEN an error does not match any defined pattern, THE `Error_Classifier` SHALL assign the `ErrorType` `unknown`.
+8. THE `Error_Classifier` SHALL map each `ErrorType` to a default `RecoveryStrategy`:
 8. THE `Error_Classifier` SHALL map each `ErrorType` to a default `RecoveryStrategy` according to the following table:
    - `network` → `auto_retry`
    - `api` → `auto_retry`
@@ -131,6 +132,7 @@ This feature enhances the Soroban Ajo platform's error handling by replacing the
 #### Acceptance Criteria
 
 1. THE `Fallback_UI` SHALL display a user-friendly message derived from the `ErrorType` rather than the raw error message.
+2. THE `Error_Boundary` SHALL maintain a mapping of `ErrorType` to user-friendly message strings:
 2. THE `Error_Boundary` SHALL maintain a mapping of `ErrorType` to user-friendly message strings, with the following defaults:
    - `network`: "Network connection issue. Please check your internet connection."
    - `api`: "We're having trouble reaching our servers. Please try again shortly."
@@ -152,6 +154,7 @@ This feature enhances the Soroban Ajo platform's error handling by replacing the
 #### Acceptance Criteria
 
 1. THE `Error_Boundary` SHALL accept a `strategy` prop of type `RecoveryStrategy` that overrides the default strategy determined by the `Error_Classifier`.
+2. THE `Error_Boundary` SHALL accept an `errorTypes` prop of type `ErrorType[]` that restricts which error types the boundary will handle; WHEN an error's `ErrorType` is not in the list, THE `Error_Boundary` SHALL re-throw the error to the nearest parent boundary.
 2. THE `Error_Boundary` SHALL accept a `errorTypes` prop of type `ErrorType[]` that restricts which error types the boundary will handle; WHEN an error's `ErrorType` is not in the list, THE `Error_Boundary` SHALL re-throw the error to the nearest parent boundary.
 3. THE `Error_Boundary` SHALL accept a `fallback` prop of type `React.ReactNode` for custom fallback content.
 4. THE `Error_Boundary` SHALL accept a `maxRetries` prop as defined in Requirement 2.2.

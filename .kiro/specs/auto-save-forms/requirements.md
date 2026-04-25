@@ -17,6 +17,7 @@ This feature adds intelligent auto-save functionality to all forms in the platfo
 - **Debounce_Interval**: The configurable delay (in milliseconds) after the last change before a save is triggered
 - **Form_Key**: A unique string identifier scoped to a form type and optional entity ID, used to namespace drafts
 
+---
 
 ## Requirements
 
@@ -26,6 +27,11 @@ This feature adds intelligent auto-save functionality to all forms in the platfo
 
 #### Acceptance Criteria
 
+1. WHEN a form field value changes, THE AutoSave_Hook SHALL schedule a save operation after the configured Debounce_Interval (default: 1000ms).
+2. WHEN a new field change occurs before the Debounce_Interval elapses, THE AutoSave_Hook SHALL reset the debounce timer, cancelling the previously scheduled save.
+3. WHEN the user explicitly submits the form, THE AutoSave_Hook SHALL cancel any pending debounced save to avoid duplicate writes.
+4. THE AutoSave_Hook SHALL accept a configurable `debounceMs` option that overrides the default Debounce_Interval.
+5. WHEN the component using the AutoSave_Hook unmounts with a pending debounced save, THE AutoSave_Hook SHALL flush the pending save before teardown.
 1. WHEN a form field value changes, THE AutoSave_Hook SHALL schedule a save operation after the configured Debounce_Interval (default: 1000ms)
 2. WHEN a new field change occurs before the Debounce_Interval elapses, THE AutoSave_Hook SHALL reset the debounce timer, cancelling the previously scheduled save
 3. WHEN the user explicitly submits the form, THE AutoSave_Hook SHALL cancel any pending debounced save to avoid duplicate writes
@@ -40,6 +46,11 @@ This feature adds intelligent auto-save functionality to all forms in the platfo
 
 #### Acceptance Criteria
 
+1. THE Save_Indicator SHALL display one of four states: `idle`, `saving`, `saved`, or `error`.
+2. WHEN a save operation begins, THE Save_Indicator SHALL transition to the `saving` state within 100ms.
+3. WHEN a save operation completes successfully, THE Save_Indicator SHALL transition to the `saved` state and display a human-readable timestamp of the last save.
+4. WHEN a save operation fails, THE Save_Indicator SHALL transition to the `error` state and display a descriptive error message.
+5. WHEN the form has unsaved pending changes, THE Save_Indicator SHALL display the `saving` state rather than `saved`.
 1. THE Save_Indicator SHALL display one of four states: `idle`, `saving`, `saved`, or `error`
 2. WHEN a save operation begins, THE Save_Indicator SHALL transition to the `saving` state within 100ms
 3. WHEN a save operation completes successfully, THE Save_Indicator SHALL transition to the `saved` state and display a human-readable timestamp of the last save
@@ -54,6 +65,11 @@ This feature adds intelligent auto-save functionality to all forms in the platfo
 
 #### Acceptance Criteria
 
+1. WHEN a debounced save is triggered, THE AutoSave_Hook SHALL write the current form values to Local_Storage under the Form_Key before attempting the Cloud_Store write.
+2. THE AutoSave_Hook SHALL namespace Local_Storage entries using the pattern `autosave:{form_key}` to avoid collisions with other application data.
+3. WHEN the Local_Storage write fails (e.g., storage quota exceeded), THE AutoSave_Hook SHALL log the error and continue attempting the Cloud_Store write.
+4. WHEN a form mounts and a Local_Storage entry exists for the Form_Key, THE AutoSave_Hook SHALL expose the stored draft for optional restoration.
+5. WHEN a draft is successfully committed to the Cloud_Store, THE AutoSave_Hook SHALL remove the corresponding Local_Storage entry.
 1. WHEN a debounced save is triggered, THE AutoSave_Hook SHALL write the current form values to Local_Storage under the Form_Key before attempting the Cloud_Store write
 2. THE AutoSave_Hook SHALL namespace Local_Storage entries using the pattern `autosave:{form_key}` to avoid collisions with other application data
 3. WHEN the Local_Storage write fails (e.g., storage quota exceeded), THE AutoSave_Hook SHALL log the error and continue attempting the Cloud_Store write
@@ -68,6 +84,10 @@ This feature adds intelligent auto-save functionality to all forms in the platfo
 
 #### Acceptance Criteria
 
+1. WHEN a debounced save is triggered and the device is online, THE AutoSave_Hook SHALL persist the current form values to the Cloud_Store via the designated API endpoint.
+2. WHEN the Cloud_Store write succeeds, THE AutoSave_Hook SHALL update the local draft metadata with the server-assigned version identifier and timestamp.
+3. WHEN the Cloud_Store write fails with a transient error (HTTP 5xx or network timeout), THE AutoSave_Hook SHALL retry the request up to 3 times using exponential backoff before transitioning to the `error` state.
+4. THE AutoSave_Hook SHALL include the current client-side version identifier in each Cloud_Store write request to enable server-side conflict detection.
 1. WHEN a debounced save is triggered and the device is online, THE AutoSave_Hook SHALL persist the current form values to the Cloud_Store via the designated API endpoint
 2. WHEN the Cloud_Store write succeeds, THE AutoSave_Hook SHALL update the local draft metadata with the server-assigned version identifier and timestamp
 3. WHEN the Cloud_Store write fails with a transient error (HTTP 5xx or network timeout), THE AutoSave_Hook SHALL retry the request up to 3 times using exponential backoff before transitioning to the `error` state
@@ -81,6 +101,10 @@ This feature adds intelligent auto-save functionality to all forms in the platfo
 
 #### Acceptance Criteria
 
+1. WHILE the device is offline, THE AutoSave_Hook SHALL save form changes exclusively to Local_Storage and set the Save_Indicator to `saved` with an `(offline)` qualifier.
+2. WHEN the device transitions from offline to online, THE Sync_Manager SHALL automatically flush all pending Local_Storage drafts to the Cloud_Store in the order they were created.
+3. WHEN the Sync_Manager flush encounters a Conflict during online restoration, THE AutoSave_Hook SHALL pause the flush and surface the Conflict for user resolution before continuing.
+4. IF the Sync_Manager flush fails for a specific draft after 3 retry attempts, THEN THE Sync_Manager SHALL retain the draft in Local_Storage and set the Save_Indicator to `error` for the affected form.
 1. WHILE the device is offline, THE AutoSave_Hook SHALL save form changes exclusively to Local_Storage and set the Save_Indicator to `saved` with an `(offline)` qualifier
 2. WHEN the device transitions from offline to online, THE Sync_Manager SHALL automatically flush all pending Local_Storage drafts to the Cloud_Store in the order they were created
 3. WHEN the Sync_Manager flush encounters a Conflict during online restoration, THE AutoSave_Hook SHALL pause the flush and surface the Conflict for user resolution before continuing
@@ -94,6 +118,11 @@ This feature adds intelligent auto-save functionality to all forms in the platfo
 
 #### Acceptance Criteria
 
+1. WHEN the AutoSave_Hook fetches the latest draft from the Cloud_Store and the remote version identifier differs from the local version identifier, THE AutoSave_Hook SHALL declare a Conflict.
+2. WHEN a Conflict is declared, THE AutoSave_Hook SHALL present both the local and remote draft values to the consuming component via a `conflict` state object.
+3. WHEN a Conflict is declared, THE AutoSave_Hook SHALL pause all further auto-save writes until the Conflict is resolved.
+4. WHEN the user selects the local version to resolve a Conflict, THE AutoSave_Hook SHALL overwrite the Cloud_Store with the local draft and increment the version identifier.
+5. WHEN the user selects the remote version to resolve a Conflict, THE AutoSave_Hook SHALL discard the local draft and replace the form values with the remote draft values.
 1. WHEN the AutoSave_Hook fetches the latest draft from the Cloud_Store and the remote version identifier differs from the local version identifier, THE AutoSave_Hook SHALL declare a Conflict
 2. WHEN a Conflict is declared, THE AutoSave_Hook SHALL present both the local and remote draft values to the consuming component via a `conflict` state object
 3. WHEN a Conflict is declared, THE AutoSave_Hook SHALL pause all further auto-save writes until the Conflict is resolved
@@ -108,6 +137,10 @@ This feature adds intelligent auto-save functionality to all forms in the platfo
 
 #### Acceptance Criteria
 
+1. THE Cloud_Store SHALL retain up to 20 version snapshots per Form_Key, discarding the oldest snapshot when the limit is exceeded.
+2. WHEN the user requests version history for a form, THE AutoSave_Hook SHALL retrieve the ordered list of snapshots from the Cloud_Store and expose them via a `versions` array.
+3. WHEN the user selects a snapshot from the `versions` array, THE AutoSave_Hook SHALL populate the form with the snapshot's values without immediately triggering a save.
+4. WHEN the user confirms restoration of a selected snapshot, THE AutoSave_Hook SHALL save the restored values as a new draft version, preserving the existing history.
 1. THE Cloud_Store SHALL retain up to 20 version snapshots per Form_Key, discarding the oldest snapshot when the limit is exceeded
 2. WHEN the user requests version history for a form, THE AutoSave_Hook SHALL retrieve the ordered list of snapshots from the Cloud_Store and expose them via a `versions` array
 3. WHEN the user selects a snapshot from the `versions` array, THE AutoSave_Hook SHALL populate the form with the snapshot's values without immediately triggering a save
@@ -121,6 +154,11 @@ This feature adds intelligent auto-save functionality to all forms in the platfo
 
 #### Acceptance Criteria
 
+1. WHEN a form mounts and a draft exists in the Cloud_Store for the Form_Key, THE AutoSave_Hook SHALL expose the draft via a `savedDraft` property and a `restoreDraft` callback.
+2. WHEN a form mounts and a Local_Storage draft exists but no Cloud_Store draft exists for the Form_Key, THE AutoSave_Hook SHALL expose the Local_Storage draft as the `savedDraft`.
+3. WHEN both a Local_Storage draft and a Cloud_Store draft exist on mount and their version identifiers differ, THE AutoSave_Hook SHALL treat this as a Conflict per Requirement 6.
+4. WHEN the user invokes `restoreDraft`, THE AutoSave_Hook SHALL populate the form with the draft values and set the Save_Indicator to `saved`.
+5. WHEN the user dismisses the restoration prompt, THE AutoSave_Hook SHALL discard the draft and initialize the form with its default values.
 1. WHEN a form mounts and a draft exists in the Cloud_Store for the Form_Key, THE AutoSave_Hook SHALL expose the draft via a `savedDraft` property and a `restoreDraft` callback
 2. WHEN a form mounts and a Local_Storage draft exists but no Cloud_Store draft exists for the Form_Key, THE AutoSave_Hook SHALL expose the Local_Storage draft as the `savedDraft`
 3. WHEN both a Local_Storage draft and a Cloud_Store draft exist on mount and their version identifiers differ, THE AutoSave_Hook SHALL treat this as a Conflict per Requirement 6
@@ -135,6 +173,9 @@ This feature adds intelligent auto-save functionality to all forms in the platfo
 
 #### Acceptance Criteria
 
+1. WHEN a form mounts on a device, THE AutoSave_Hook SHALL fetch the latest draft from the Cloud_Store before rendering the restoration prompt.
+2. WHEN the user has an active form session and a newer draft version is written to the Cloud_Store from another device, THE AutoSave_Hook SHALL detect the version mismatch within 30 seconds and declare a Conflict per Requirement 6.
+3. THE AutoSave_Hook SHALL poll the Cloud_Store for version updates at a configurable interval (default: 30000ms) while the form is mounted and the device is online.
 1. WHEN a form mounts on a device, THE AutoSave_Hook SHALL fetch the latest draft from the Cloud_Store before rendering the restoration prompt
 2. WHEN the user has an active form session and a newer draft version is written to the Cloud_Store from another device, THE AutoSave_Hook SHALL detect the version mismatch within 30 seconds and declare a Conflict per Requirement 6
 3. THE AutoSave_Hook SHALL poll the Cloud_Store for version updates at a configurable interval (default: 30000ms) while the form is mounted and the device is online
@@ -147,6 +188,11 @@ This feature adds intelligent auto-save functionality to all forms in the platfo
 
 #### Acceptance Criteria
 
+1. THE AutoSave_Hook SHALL accept a `formKey` string, a `values` object representing current form state, and an optional `options` configuration object as its inputs.
+2. THE AutoSave_Hook SHALL return a stable API object containing: `status` (Save_Indicator state), `savedDraft`, `restoreDraft`, `dismissDraft`, `conflict`, `resolveConflict`, `versions`, and `restoreVersion`.
+3. THE AutoSave_Hook SHALL be compatible with any form state management approach, including React Hook Form, Zustand-managed state, and uncontrolled components, by accepting a plain serializable `values` object.
+4. WHEN the `formKey` prop changes, THE AutoSave_Hook SHALL treat the new key as a distinct form, flushing any pending save for the previous key and loading the draft for the new key.
+5. THE AutoSave_Hook SHALL not introduce any peer dependencies beyond those already present in the platform stack (Next.js 14, TypeScript, Zustand, TanStack Query v5).
 1. THE AutoSave_Hook SHALL accept a `formKey` string, a `values` object representing current form state, and an optional `options` configuration object as its inputs
 2. THE AutoSave_Hook SHALL return a stable API object containing: `status` (Save_Indicator state), `savedDraft`, `restoreDraft`, `dismissDraft`, `conflict`, `resolveConflict`, `versions`, and `restoreVersion`
 3. THE AutoSave_Hook SHALL be compatible with any form state management approach, including React Hook Form, Zustand-managed state, and uncontrolled components, by accepting a plain serializable `values` object
